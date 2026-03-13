@@ -2,6 +2,8 @@
 
 Flow is a **project management / profiles dashboard** service for creating, updating, sharing, and deleting project information, including project details and attached documents.
 
+> **Note:** This is an educational project being developed as part of a learning course. It is currently serving as a sandbox for practicing modern Python backend development practices.
+
 ## Status
 
 This project is in the **early development stage**.  
