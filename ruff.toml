@@ -3,7 +3,7 @@ target-version = "py312"
 line-length = 100
 
 [lint.isort]
-known-first-party = ["src"]
+known-first-party = ["app"]
 
 [format]
 quote-style = "double"

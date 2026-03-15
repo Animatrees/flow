@@ -22,6 +22,6 @@ dev = [
 
 [tool.ty.src]
 include = [
-    "src",
+    "app",
     "tests",
 ]
