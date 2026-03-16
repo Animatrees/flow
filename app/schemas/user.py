@@ -66,6 +66,13 @@ class UserCreate(BaseModel):
         return self
 
 
+class UserUpdate(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    username: Username | None = None
+    email: EmailStr | None = None
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import UserCreate
+from app.schemas import UserCreate, UserUpdate
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
@@ -89,3 +89,29 @@ def test_password_match_rejects_mismatch(valid_user_data: dict):
 def test_email_rejects_invalid_format(valid_user_data: dict, email: str):
     with pytest.raises(ValidationError):
         UserCreate(**{**valid_user_data, "email": email})
+
+
+def test_user_update_allows_partial_payload():
+    user_update = UserUpdate(email=VALID_EMAIL)
+
+    assert user_update.email == VALID_EMAIL
+    assert user_update.username is None
+
+
+def test_user_update_accepts_empty_payload():
+    user_update = UserUpdate()
+
+    assert user_update.model_dump(exclude_unset=True) == {}
+
+
+def test_user_update_reuses_username_validation():
+    with pytest.raises(
+        ValidationError,
+        match="Username may contain only letters, digits, dots, underscores, and hyphens",
+    ):
+        UserUpdate(username="invalid user")
+
+
+def test_user_update_reuses_email_validation():
+    with pytest.raises(ValidationError):
+        UserUpdate(email="invalid-email")
