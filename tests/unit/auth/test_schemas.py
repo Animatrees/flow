@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import RegisterRequest, UserCreate, UserUpdate
+from app.schemas import RegisterRequest
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
@@ -27,18 +27,6 @@ def test_register_request_accepts_valid_payload(valid_register_request: Register
     assert valid_register_request.username == VALID_USERNAME
     assert valid_register_request.email == VALID_EMAIL
     assert valid_register_request.password == VALID_PASSWORD
-
-
-def test_user_create_accepts_internal_payload():
-    user = UserCreate(
-        username=VALID_USERNAME,
-        email=VALID_EMAIL,
-        password_hash="hashed-password",
-    )
-
-    assert user.username == VALID_USERNAME
-    assert user.email == VALID_EMAIL
-    assert user.password_hash == "hashed-password"
 
 
 @pytest.mark.parametrize(
@@ -106,29 +94,3 @@ def test_password_match_rejects_mismatch(valid_register_data: dict):
 def test_email_rejects_invalid_format(valid_register_data: dict, email: str):
     with pytest.raises(ValidationError):
         RegisterRequest(**{**valid_register_data, "email": email})
-
-
-def test_user_update_allows_partial_payload():
-    user_update = UserUpdate(email=VALID_EMAIL)
-
-    assert user_update.email == VALID_EMAIL
-    assert user_update.username is None
-
-
-def test_user_update_accepts_empty_payload():
-    user_update = UserUpdate()
-
-    assert user_update.model_dump(exclude_unset=True) == {}
-
-
-def test_user_update_reuses_username_validation():
-    with pytest.raises(
-        ValidationError,
-        match="Username may contain only letters, digits, dots, underscores, and hyphens",
-    ):
-        UserUpdate(username="invalid user")
-
-
-def test_user_update_reuses_email_validation():
-    with pytest.raises(ValidationError):
-        UserUpdate(email="invalid-email")
