@@ -7,6 +7,6 @@ precommit:
 	uv run pre-commit run --all-files
 
 test:
-	uv run pytest -svv
+	uv run pytest -svv --cov=app --cov-report=term-missing
 
 check: precommit test
