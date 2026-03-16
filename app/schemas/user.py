@@ -21,21 +21,6 @@ def validate_username_format(value: str) -> str:
     return value
 
 
-def validate_password_strength(value: str) -> str:
-    errors: list[str] = []
-    if not any(char.islower() for char in value):
-        errors.append("at least one lowercase letter")
-    if not any(char.isupper() for char in value):
-        errors.append("at least one uppercase letter")
-    if not any(char.isdigit() for char in value):
-        errors.append("at least one digit")
-    if not any(not char.isalnum() for char in value):
-        errors.append("at least one special character")
-    if errors:
-        raise ValueError("Password must contain " + ", ".join(errors) + ".")
-    return value
-
-
 type Username = Annotated[
     str,
     StringConstraints(min_length=3, max_length=50),
