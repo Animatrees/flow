@@ -4,12 +4,11 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
-    EmailStr,
     StringConstraints,
     model_validator,
 )
 
-from app.schemas.user import Username
+from app.schemas.user import LowerEmail, Username
 
 
 def validate_password_strength(value: str) -> str:
@@ -20,7 +19,7 @@ def validate_password_strength(value: str) -> str:
         errors.append("at least one uppercase letter")
     if not any(char.isdigit() for char in value):
         errors.append("at least one digit")
-    if not any(not char.isalnum() for char in value):
+    if not any((not char.isalnum()) and (not char.isspace()) for char in value):
         errors.append("at least one special character")
     if errors:
         raise ValueError("Password must contain " + ", ".join(errors) + ".")
@@ -40,7 +39,7 @@ class RegisterRequest(BaseModel):
     username: Username
     password: StrongPassword
     repeat_password: str
-    email: EmailStr
+    email: LowerEmail
 
     @model_validator(mode="after")
     def validate_password_match(self) -> Self:
@@ -51,5 +50,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    username: Username
     password: str

@@ -67,6 +67,12 @@ def test_user_update_allows_partial_payload():
     assert user_update.username is None
 
 
+def test_user_update_normalizes_email_to_lowercase():
+    user_update = UserUpdate(email="User@Example.COM")
+
+    assert user_update.email == "user@example.com"
+
+
 def test_user_update_accepts_empty_payload():
     user_update = UserUpdate()
 

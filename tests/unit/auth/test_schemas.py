@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import RegisterRequest
+from app.schemas import LoginRequest, RegisterRequest
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
@@ -94,3 +94,22 @@ def test_password_match_rejects_mismatch(valid_register_data: dict):
 def test_email_rejects_invalid_format(valid_register_data: dict, email: str):
     with pytest.raises(ValidationError):
         RegisterRequest(**{**valid_register_data, "email": email})
+
+
+def test_password_rejects_whitespace_as_special_character(valid_register_data: dict):
+    weak_password = "StrongPass1 "
+
+    with pytest.raises(ValidationError, match="at least one special character"):
+        RegisterRequest(
+            **{
+                **valid_register_data,
+                "password": weak_password,
+                "repeat_password": weak_password,
+            }
+        )
+
+
+def test_login_request_normalizes_username_to_lowercase():
+    login_request = LoginRequest(username="Valid.User", password="StrongPass1!")
+
+    assert login_request.username == "valid.user"
