@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Annotated, Self
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import (
@@ -9,7 +9,6 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     StringConstraints,
-    model_validator,
 )
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_.\-]+$")
@@ -43,27 +42,13 @@ type Username = Annotated[
     AfterValidator(validate_username_format),
 ]
 
-type StrongPassword = Annotated[
-    str,
-    StringConstraints(min_length=8, max_length=128),
-    AfterValidator(validate_password_strength),
-]
-
 
 class UserCreate(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username
-    password: StrongPassword
-    repeat_password: str
     email: EmailStr
-
-    @model_validator(mode="after")
-    def validate_password_match(self) -> Self:
-        if self.password != self.repeat_password:
-            msg = "Passwords do not match."
-            raise ValueError(msg)
-        return self
+    password_hash: str
 
 
 class UserUpdate(BaseModel):

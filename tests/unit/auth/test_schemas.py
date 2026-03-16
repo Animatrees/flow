@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import UserCreate, UserUpdate
+from app.schemas import RegisterRequest, UserCreate, UserUpdate
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
@@ -9,7 +9,7 @@ VALID_PASSWORD = "StrongPass1!"
 
 
 @pytest.fixture
-def valid_user_data() -> dict:
+def valid_register_data() -> dict:
     return {
         "username": VALID_USERNAME,
         "password": VALID_PASSWORD,
@@ -19,13 +19,26 @@ def valid_user_data() -> dict:
 
 
 @pytest.fixture
-def valid_user(valid_user_data: dict) -> UserCreate:
-    return UserCreate(**valid_user_data)
+def valid_register_request(valid_register_data: dict) -> RegisterRequest:
+    return RegisterRequest(**valid_register_data)
 
 
-def test_user_create_accepts_valid_payload(valid_user: UserCreate):
-    assert valid_user.username == VALID_USERNAME
-    assert valid_user.email == VALID_EMAIL
+def test_register_request_accepts_valid_payload(valid_register_request: RegisterRequest):
+    assert valid_register_request.username == VALID_USERNAME
+    assert valid_register_request.email == VALID_EMAIL
+    assert valid_register_request.password == VALID_PASSWORD
+
+
+def test_user_create_accepts_internal_payload():
+    user = UserCreate(
+        username=VALID_USERNAME,
+        email=VALID_EMAIL,
+        password_hash="hashed-password",
+    )
+
+    assert user.username == VALID_USERNAME
+    assert user.email == VALID_EMAIL
+    assert user.password_hash == "hashed-password"
 
 
 @pytest.mark.parametrize(
@@ -37,12 +50,12 @@ def test_user_create_accepts_valid_payload(valid_user: UserCreate):
         "пользователь",  # cyrillic
     ],
 )
-def test_username_rejects_invalid_characters(valid_user_data: dict, username: str):
+def test_username_rejects_invalid_characters(valid_register_data: dict, username: str):
     with pytest.raises(
         ValidationError,
         match="Username may contain only letters, digits, dots, underscores, and hyphens",
     ):
-        UserCreate(**{**valid_user_data, "username": username})
+        RegisterRequest(**{**valid_register_data, "username": username})
 
 
 @pytest.mark.parametrize(
@@ -55,15 +68,19 @@ def test_username_rejects_invalid_characters(valid_user_data: dict, username: st
     ],
 )
 def test_password_rejects_missing_each_requirement(
-    valid_user_data: dict, password: str, missing_requirement: str
+    valid_register_data: dict, password: str, missing_requirement: str
 ):
     with pytest.raises(ValidationError, match=missing_requirement):
-        UserCreate(**{**valid_user_data, "password": password, "repeat_password": password})
+        RegisterRequest(
+            **{**valid_register_data, "password": password, "repeat_password": password}
+        )
 
 
-def test_password_accumulates_multiple_errors(valid_user_data: dict):
+def test_password_accumulates_multiple_errors(valid_register_data: dict):
     with pytest.raises(ValidationError) as exc_info:
-        UserCreate(**{**valid_user_data, "password": "weakpass", "repeat_password": "weakpass"})
+        RegisterRequest(
+            **{**valid_register_data, "password": "weakpass", "repeat_password": "weakpass"}
+        )
 
     error_text = str(exc_info.value)
     assert "at least one uppercase letter" in error_text
@@ -71,9 +88,9 @@ def test_password_accumulates_multiple_errors(valid_user_data: dict):
     assert "at least one special character" in error_text
 
 
-def test_password_match_rejects_mismatch(valid_user_data: dict):
+def test_password_match_rejects_mismatch(valid_register_data: dict):
     with pytest.raises(ValidationError, match="Passwords do not match"):
-        UserCreate(**{**valid_user_data, "repeat_password": "AnotherPass1!"})
+        RegisterRequest(**{**valid_register_data, "repeat_password": "AnotherPass1!"})
 
 
 @pytest.mark.parametrize(
@@ -86,9 +103,9 @@ def test_password_match_rejects_mismatch(valid_user_data: dict):
         "",
     ],
 )
-def test_email_rejects_invalid_format(valid_user_data: dict, email: str):
+def test_email_rejects_invalid_format(valid_register_data: dict, email: str):
     with pytest.raises(ValidationError):
-        UserCreate(**{**valid_user_data, "email": email})
+        RegisterRequest(**{**valid_register_data, "email": email})
 
 
 def test_user_update_allows_partial_payload():
