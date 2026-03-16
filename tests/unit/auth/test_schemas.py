@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.services.entities import UserCreate
+from app.schemas import UserCreate
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
