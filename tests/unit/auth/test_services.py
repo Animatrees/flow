@@ -1,0 +1,124 @@
+import pytest
+
+from app.schemas import LoginRequest, RegisterRequest, UserCreate
+from app.services import (
+    AuthService,
+    EmailAlreadyExistsError,
+    InvalidCredentialsError,
+    UsernameAlreadyExistsError,
+    UserService,
+    hash_password,
+)
+from tests.unit.fakes.user_repository import InMemoryUserRepository
+
+
+@pytest.fixture
+def user_repository() -> InMemoryUserRepository:
+    return InMemoryUserRepository()
+
+
+@pytest.fixture
+def user_service(user_repository: InMemoryUserRepository) -> UserService:
+    return UserService(user_repository)
+
+
+@pytest.fixture
+def auth_service(user_service: UserService) -> AuthService:
+    return AuthService(user_service)
+
+
+@pytest.fixture
+def register_request() -> RegisterRequest:
+    return RegisterRequest(
+        username="valid.user",
+        email="user@example.com",
+        password="StrongPass1!",
+        repeat_password="StrongPass1!",
+    )
+
+
+@pytest.mark.anyio
+async def test_auth_service_register_creates_user(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+    register_request: RegisterRequest,
+) -> None:
+    user = await auth_service.register(register_request)
+
+    stored_user = await user_repository.get_auth_by_username(register_request.username)
+
+    assert user.username == register_request.username
+    assert stored_user is not None
+    assert stored_user.password_hash != register_request.password
+
+
+@pytest.mark.anyio
+async def test_auth_service_register_rejects_duplicate_username(
+    auth_service: AuthService,
+    register_request: RegisterRequest,
+) -> None:
+    await auth_service.register(register_request)
+
+    with pytest.raises(UsernameAlreadyExistsError):
+        await auth_service.register(
+            register_request.model_copy(update={"email": "other@example.com"})
+        )
+
+
+@pytest.mark.anyio
+async def test_auth_service_register_rejects_duplicate_email(
+    auth_service: AuthService,
+    register_request: RegisterRequest,
+) -> None:
+    await auth_service.register(register_request)
+
+    with pytest.raises(EmailAlreadyExistsError):
+        await auth_service.register(register_request.model_copy(update={"username": "other.user"}))
+
+
+@pytest.mark.anyio
+async def test_auth_service_authenticate_returns_user(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    password = "StrongPass1!"
+    created_user = await user_repository.create(
+        UserCreate(
+            username="valid.user",
+            email="user@example.com",
+            password_hash=hash_password(password),
+        )
+    )
+
+    authenticated_user = await auth_service.authenticate(
+        LoginRequest(username="valid.user", password=password)
+    )
+
+    assert authenticated_user == created_user
+
+
+@pytest.mark.anyio
+async def test_auth_service_authenticate_rejects_invalid_credentials(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    await user_repository.create(
+        UserCreate(
+            username="valid.user",
+            email="user@example.com",
+            password_hash=hash_password("StrongPass1!"),
+        )
+    )
+
+    with pytest.raises(InvalidCredentialsError, match="Invalid username or password"):
+        await auth_service.authenticate(LoginRequest(username="valid.user", password="WrongPass1!"))
+
+
+@pytest.mark.anyio
+async def test_auth_service_authenticate_rejects_missing_user(
+    auth_service: AuthService,
+) -> None:
+    with pytest.raises(InvalidCredentialsError, match="Invalid username or password"):
+        await auth_service.authenticate(
+            LoginRequest(username="missing.user", password="StrongPass1!")
+        )
