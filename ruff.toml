@@ -29,7 +29,7 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-
+"alembic/*" = ["INP001", "D205"]
 "tests/**/*" = [
     "S101",
     "S105",
