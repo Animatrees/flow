@@ -1,8 +1,12 @@
+import uvicorn
 from fastapi import FastAPI
 
+from app.api.v1 import router as api_router
+from app.core.config import settings
+
 app = FastAPI(title="Flow")
+app.include_router(api_router, prefix=settings.api.prefix)
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "flow"}
+if __name__ == "__main__":
+    uvicorn.run("main:app", host=settings.run.host, port=settings.run.port, reload=True)
