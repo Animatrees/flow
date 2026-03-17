@@ -1,3 +1,7 @@
-from fastapi import APIRouter
+from .exc_handler import init_exception_handler
+from .routes import init_routes
 
-router = APIRouter()
+__all__ = (
+    "init_exception_handler",
+    "init_routes",
+)

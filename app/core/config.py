@@ -54,6 +54,3 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
-
-
-settings = Settings()
