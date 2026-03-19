@@ -1,12 +1,9 @@
 from app.services.auth_service import AuthService
 from app.services.base_repository import AbstractRepository
 from app.services.exceptions import (
-    ConflictError,
-    EmailAlreadyExistsError,
     InvalidCredentialsError,
     NotFoundError,
     ServiceError,
-    UsernameAlreadyExistsError,
     UserNotFoundError,
 )
 from app.services.security import hash_password, verify_password
@@ -17,14 +14,11 @@ __all__ = [
     "AbstractRepository",
     "AbstractUserRepository",
     "AuthService",
-    "ConflictError",
-    "EmailAlreadyExistsError",
     "InvalidCredentialsError",
     "NotFoundError",
     "ServiceError",
     "UserNotFoundError",
     "UserService",
-    "UsernameAlreadyExistsError",
     "hash_password",
     "verify_password",
 ]

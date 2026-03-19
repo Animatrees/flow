@@ -1,11 +1,10 @@
 import pytest
 
+from app.db.repositories import EmailAlreadyExistsError, UsernameAlreadyExistsError
 from app.schemas import LoginRequest, RegisterRequest, UserCreate
 from app.services import (
     AuthService,
-    EmailAlreadyExistsError,
     InvalidCredentialsError,
-    UsernameAlreadyExistsError,
     UserService,
     hash_password,
 )

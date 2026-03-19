@@ -4,8 +4,10 @@ from uuid import UUID
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.base_repository import AbstractRepository
 
+type UserId = UUID
 
-class AbstractUserRepository(AbstractRepository[UUID, UserCreate, UserRead, UserUpdate]):
+
+class AbstractUserRepository(AbstractRepository[UserId, UserCreate, UserRead, UserUpdate]):
     @abstractmethod
     async def get_by_username(self, username: str) -> UserRead | None:
         """Return a user by username or None if it does not exist."""

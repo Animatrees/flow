@@ -2,12 +2,10 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from app.db.repositories import EmailAlreadyExistsError, UsernameAlreadyExistsError
 from app.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services import (
     AbstractUserRepository,
-    EmailAlreadyExistsError,
-    NotFoundError,
-    UsernameAlreadyExistsError,
 )
 
 
@@ -70,14 +68,13 @@ class InMemoryUserRepository(AbstractUserRepository):
         self.users[created_user.id] = created_user
         return to_user_read(created_user)
 
-    async def update(self, id_: UUID, data: UserUpdate) -> UserRead:
+    async def update(self, id_: UUID, data: UserUpdate) -> UserRead | None:
         if self.update_error is not None:
             raise self.update_error
 
         user = self.users.get(id_)
         if user is None:
-            msg = f"User with id '{id_}' was not found."
-            raise NotFoundError(msg)
+            return None
         if data.username is not None:
             self._ensure_unique_username(data.username, exclude_user_id=id_)
         if data.email is not None:
@@ -87,11 +84,9 @@ class InMemoryUserRepository(AbstractUserRepository):
         self.users[id_] = updated_user
         return to_user_read(updated_user)
 
-    async def delete(self, id_: UUID) -> None:
+    async def delete(self, id_: UUID) -> bool:
         deleted_user = self.users.pop(id_, None)
-        if deleted_user is None:
-            msg = f"User with id '{id_}' was not found."
-            raise NotFoundError(msg)
+        return deleted_user is not None
 
     async def get_by_username(self, username: str) -> UserRead | None:
         for user in self.users.values():

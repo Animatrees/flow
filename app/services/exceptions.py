@@ -13,24 +13,6 @@ class UserNotFoundError(NotFoundError):
         super().__init__(message)
 
 
-class ConflictError(ServiceError):
-    """Raised when an operation violates a uniqueness or state constraint."""
-
-
-class UsernameAlreadyExistsError(ConflictError):
-    """Raised when a username is already in use."""
-
-    def __init__(self, message: str = "Username is already taken.") -> None:
-        super().__init__(message)
-
-
-class EmailAlreadyExistsError(ConflictError):
-    """Raised when an email is already in use."""
-
-    def __init__(self, message: str = "Email is already taken.") -> None:
-        super().__init__(message)
-
-
 class InvalidCredentialsError(ServiceError):
     """Raised when login credentials are invalid."""
 

@@ -4,10 +4,9 @@ from uuid import UUID
 
 import pytest
 
+from app.db.repositories import EmailAlreadyExistsError, UsernameAlreadyExistsError
 from app.schemas import UserAuthRead, UserCreate, UserUpdate
 from app.services import (
-    EmailAlreadyExistsError,
-    UsernameAlreadyExistsError,
     UserNotFoundError,
     UserService,
 )
@@ -216,4 +215,33 @@ async def test_user_service_update_raises_for_missing_user(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_service.update(MISSING_USER_ID, UserUpdate(username="updated.user"))
+        await user_service.update(
+            MISSING_USER_ID,
+            UserUpdate(username="updated.user"),
+        )
+
+
+@pytest.mark.anyio
+async def test_user_service_delete_removes_existing_user(
+    user_service: UserService,
+) -> None:
+    result = await user_service.delete(FIRST_USER_ID)
+
+    assert result is None
+
+    with pytest.raises(
+        UserNotFoundError,
+        match=re.escape(f"User with id '{FIRST_USER_ID}' was not found."),
+    ):
+        await user_service.get_by_id(FIRST_USER_ID)
+
+
+@pytest.mark.anyio
+async def test_user_service_delete_raises_for_missing_user(
+    user_service: UserService,
+) -> None:
+    with pytest.raises(
+        UserNotFoundError,
+        match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
+    ):
+        await user_service.delete(MISSING_USER_ID)

@@ -3,7 +3,6 @@ from uuid import UUID
 
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.exceptions import (
-    NotFoundError,
     UserNotFoundError,
 )
 from app.services.user_repository import AbstractUserRepository
@@ -44,8 +43,14 @@ class UserService:
         return await self.repo.get_all()
 
     async def update(self, user_id: UUID, data: UserUpdate) -> UserRead:
-        try:
-            return await self.repo.update(user_id, data)
-        except NotFoundError as err:
+        user = await self.repo.update(user_id, data)
+        if user is None:
             msg = f"User with id '{user_id}' was not found."
-            raise UserNotFoundError(msg) from err
+            raise UserNotFoundError(msg)
+        return user
+
+    async def delete(self, user_id: UUID) -> None:
+        success = await self.repo.delete(user_id)
+        if not success:
+            msg = f"User with id '{user_id}' was not found."
+            raise UserNotFoundError(msg)
