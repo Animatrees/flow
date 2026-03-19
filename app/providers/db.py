@@ -43,6 +43,7 @@ class SqlalchemyProvider(Provider):
         session = session_maker()
         try:
             yield session
+            await session.commit()
         except Exception:
             await session.rollback()
             raise
