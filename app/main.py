@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from app.api.v1 import init_exception_handler, init_routes
 from app.core.config import Settings
-from app.providers import ConfigProvider, SqlalchemyProvider
+from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider, SqlalchemyProvider
 
 config = Settings()
 
@@ -17,6 +17,8 @@ def container_factory() -> AsyncContainer:
     return make_async_container(
         ConfigProvider(config=config),
         SqlalchemyProvider(),
+        RepositoryProvider(),
+        ServiceProvider(),
     )
 
 

@@ -1,7 +1,4 @@
-from app.services.exceptions import ServiceError
-
-
-class RepositoryError(ServiceError):
+class RepositoryError(Exception):
     """Base class for repository-layer errors."""
 
 

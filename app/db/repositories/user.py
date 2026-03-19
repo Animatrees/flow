@@ -43,14 +43,15 @@ class UserRepository(AbstractUserRepository):
         if user is None:
             return None
 
+        username = data.username or user.username
+        email = data.email or user.email
+
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(user, field, value)
 
         try:
             await self.session.flush()
         except IntegrityError as err:
-            username = data.username or user.username
-            email = data.email or user.email
             raise self._map_integrity_error(err, username, email) from err
 
         return UserRead.model_validate(user)

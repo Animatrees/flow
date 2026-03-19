@@ -1,12 +1,17 @@
 import pytest
 
-from app.db.repositories import EmailAlreadyExistsError, UsernameAlreadyExistsError
 from app.schemas import LoginRequest, RegisterRequest, UserCreate
 from app.services import (
     AuthService,
     InvalidCredentialsError,
     UserService,
     hash_password,
+)
+from app.services import (
+    EmailAlreadyExistsError as ServiceEmailAlreadyExistsError,
+)
+from app.services import (
+    UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
 from tests.unit.fakes.user_repository import InMemoryUserRepository
 
@@ -58,7 +63,7 @@ async def test_auth_service_register_rejects_duplicate_username(
 ) -> None:
     await auth_service.register(register_request)
 
-    with pytest.raises(UsernameAlreadyExistsError):
+    with pytest.raises(ServiceUsernameAlreadyExistsError):
         await auth_service.register(
             register_request.model_copy(update={"email": "other@example.com"})
         )
@@ -71,7 +76,7 @@ async def test_auth_service_register_rejects_duplicate_email(
 ) -> None:
     await auth_service.register(register_request)
 
-    with pytest.raises(EmailAlreadyExistsError):
+    with pytest.raises(ServiceEmailAlreadyExistsError):
         await auth_service.register(register_request.model_copy(update={"username": "other.user"}))
 
 
