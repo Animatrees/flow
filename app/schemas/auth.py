@@ -1,43 +1,21 @@
 from typing import Annotated, Self
 
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     StringConstraints,
     model_validator,
 )
+from zxcvbn import zxcvbn
 
 from app.schemas.user import LowerEmail, Username
-
-
-def validate_password_strength(value: str) -> str:
-    errors: list[str] = []
-    if not any(char.islower() for char in value):
-        errors.append("at least one lowercase letter")
-    if not any(char.isupper() for char in value):
-        errors.append("at least one uppercase letter")
-    if not any(char.isdigit() for char in value):
-        errors.append("at least one digit")
-    if not any((not char.isalnum()) and (not char.isspace()) for char in value):
-        errors.append("at least one special character")
-    if errors:
-        raise ValueError("Password must contain " + ", ".join(errors) + ".")
-    return value
-
-
-type StrongPassword = Annotated[
-    str,
-    StringConstraints(min_length=8, max_length=128),
-    AfterValidator(validate_password_strength),
-]
 
 
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username
-    password: StrongPassword
+    password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
     repeat_password: str
     email: LowerEmail
 
@@ -46,6 +24,18 @@ class RegisterRequest(BaseModel):
         if self.password != self.repeat_password:
             msg = "Passwords do not match."
             raise ValueError(msg)
+
+        result = zxcvbn(self.password, user_inputs=[self.username, self.email])
+        min_score = 2
+        if result["score"] < min_score:
+            feedback = result["feedback"]
+            parts = ["Password is too weak."]
+            if feedback.get("warning"):
+                parts.append(feedback["warning"])
+            if feedback.get("suggestions"):
+                parts.extend(feedback["suggestions"])
+            raise ValueError(" ".join(parts))
+
         return self
 
 

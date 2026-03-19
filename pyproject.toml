@@ -15,11 +15,13 @@ dependencies = [
     "sqlalchemy[asyncio]==2.0.48",
     "uuid7==0.1.0",
     "uvicorn==0.41.0",
+    "zxcvbn>=4.5.0",
 ]
 
 [dependency-groups]
 dev = [
     "aiosqlite==0.21.0",
+    "httpx==0.28.1",
     "pre-commit==4.5.1",
     "pytest==9.0.2",
     "pytest-cov==7.0.0",

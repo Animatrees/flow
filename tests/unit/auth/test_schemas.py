@@ -47,33 +47,35 @@ def test_username_rejects_invalid_characters(valid_register_data: dict, username
 
 
 @pytest.mark.parametrize(
-    ("password", "missing_requirement"),
+    "password",
     [
-        ("NOLOWERCASE1!", "at least one lowercase letter"),
-        ("nouppercase1!", "at least one uppercase letter"),
-        ("NoDigitsHere!", "at least one digit"),
-        ("NoSpecial123A", "at least one special character"),
+        "NOLOWERCASE1!",
+        "nouppercase1!",
+        "NoDigitsHere!",
+        "NoSpecial123A",
+        "StrongPass1 ",
     ],
 )
-def test_password_rejects_missing_each_requirement(
-    valid_register_data: dict, password: str, missing_requirement: str
+def test_password_accepts_strong_passwords_without_character_class_rules(
+    valid_register_data: dict, password: str
 ):
-    with pytest.raises(ValidationError, match=missing_requirement):
-        RegisterRequest(
-            **{**valid_register_data, "password": password, "repeat_password": password}
-        )
+    register_request = RegisterRequest(
+        **{**valid_register_data, "password": password, "repeat_password": password}
+    )
+
+    assert register_request.password == password
 
 
-def test_password_accumulates_multiple_errors(valid_register_data: dict):
+def test_password_rejects_weak_password_with_zxcvbn_feedback(valid_register_data: dict):
     with pytest.raises(ValidationError) as exc_info:
         RegisterRequest(
-            **{**valid_register_data, "password": "weakpass", "repeat_password": "weakpass"}
+            **{**valid_register_data, "password": "password", "repeat_password": "password"}
         )
 
     error_text = str(exc_info.value)
-    assert "at least one uppercase letter" in error_text
-    assert "at least one digit" in error_text
-    assert "at least one special character" in error_text
+    assert "Password is too weak." in error_text
+    assert "top-10 common password" in error_text
+    assert "Add another word or two. Uncommon words are better." in error_text
 
 
 def test_password_match_rejects_mismatch(valid_register_data: dict):
@@ -96,10 +98,10 @@ def test_email_rejects_invalid_format(valid_register_data: dict, email: str):
         RegisterRequest(**{**valid_register_data, "email": email})
 
 
-def test_password_rejects_whitespace_as_special_character(valid_register_data: dict):
-    weak_password = "StrongPass1 "
+def test_password_rejects_password_similar_to_user_inputs(valid_register_data: dict):
+    weak_password = "valid.user123"
 
-    with pytest.raises(ValidationError, match="at least one special character"):
+    with pytest.raises(ValidationError, match=r"Password is too weak."):
         RegisterRequest(
             **{
                 **valid_register_data,
