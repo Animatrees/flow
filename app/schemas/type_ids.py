@@ -3,3 +3,4 @@ from uuid import UUID
 
 UserId = NewType("UserId", UUID)
 ProjectId = NewType("ProjectId", UUID)
+DocumentId = NewType("DocumentId", UUID)

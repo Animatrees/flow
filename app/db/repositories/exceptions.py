@@ -8,6 +8,9 @@ from app.services.exceptions import (
     ProjectNotFoundError as ServiceProjectNotFoundError,
 )
 from app.services.exceptions import (
+    RepositoryError as ServiceRepositoryError,
+)
+from app.services.exceptions import (
     UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
 from app.services.exceptions import (
@@ -15,7 +18,7 @@ from app.services.exceptions import (
 )
 
 
-class RepositoryError(Exception):
+class RepositoryError(ServiceRepositoryError):
     """Base class for repository-layer errors."""
 
 

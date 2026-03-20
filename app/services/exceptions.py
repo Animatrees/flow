@@ -2,6 +2,10 @@ class ServiceError(Exception):
     """Base class for service-layer errors."""
 
 
+class RepositoryError(ServiceError):
+    """Base class for repository-related errors."""
+
+
 class DomainValidationError(ServiceError):
     """Raised when a business operation violates domain validation rules."""
 
@@ -32,6 +36,13 @@ class ProjectNotFoundError(NotFoundError):
         super().__init__(message)
 
 
+class DocumentNotFoundError(NotFoundError):
+    """Raised when a document cannot be found."""
+
+    def __init__(self, message: str = "Document was not found.") -> None:
+        super().__init__(message)
+
+
 class InvalidProjectDatesError(DomainValidationError):
     """Raised when project dates violate domain constraints."""
 
@@ -42,6 +53,20 @@ class InvalidProjectDatesError(DomainValidationError):
         super().__init__(message)
 
 
+class DocumentTooLargeError(DomainValidationError):
+    """Raised when a document exceeds the configured size limit."""
+
+    def __init__(self, message: str = "Document exceeds the maximum allowed size.") -> None:
+        super().__init__(message)
+
+
+class UnsupportedDocumentTypeError(DomainValidationError):
+    """Raised when a document type is not allowed."""
+
+    def __init__(self, message: str = "Document type is not supported.") -> None:
+        super().__init__(message)
+
+
 class InvalidCredentialsError(ServiceError):
     """Raised when login credentials are invalid."""
 
@@ -49,6 +74,13 @@ class InvalidCredentialsError(ServiceError):
         self,
         message: str = "Invalid username or password.",
     ) -> None:
+        super().__init__(message)
+
+
+class DocumentStorageError(ServiceError):
+    """Raised when a document file operation fails."""
+
+    def __init__(self, message: str = "Document storage operation failed.") -> None:
         super().__init__(message)
 
 

@@ -1,7 +1,11 @@
 from app.services.auth_service import AuthService
+from app.services.document_service import DocumentService
 from app.services.exceptions import (
     AccessDeniedError,
     ConflictError,
+    DocumentNotFoundError,
+    DocumentStorageError,
+    DocumentTooLargeError,
     DomainValidationError,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
@@ -12,25 +16,35 @@ from app.services.exceptions import (
     ProjectAccessDeniedError,
     ProjectMemberAlreadyExistsError,
     ProjectNotFoundError,
+    RepositoryError,
     ServiceError,
+    UnsupportedDocumentTypeError,
     UsernameAlreadyExistsError,
     UserNotFoundError,
 )
 from app.services.jwt_service import JWTService
 from app.services.project_service import ProjectService
 from app.services.repositories.base_repository import AbstractRepository
+from app.services.repositories.document_repository import AbstractDocumentRepository
 from app.services.repositories.project_repository import AbstractProjectRepository
 from app.services.repositories.user_repository import AbstractUserRepository
 from app.services.security import hash_password, verify_password
+from app.services.storage.file_storage import AbstractFileStorage, StoredFile
 from app.services.user_service import UserService
 
 __all__ = [
+    "AbstractDocumentRepository",
+    "AbstractFileStorage",
     "AbstractProjectRepository",
     "AbstractRepository",
     "AbstractUserRepository",
     "AccessDeniedError",
     "AuthService",
     "ConflictError",
+    "DocumentNotFoundError",
+    "DocumentService",
+    "DocumentStorageError",
+    "DocumentTooLargeError",
     "DomainValidationError",
     "EmailAlreadyExistsError",
     "InvalidCredentialsError",
@@ -43,7 +57,10 @@ __all__ = [
     "ProjectMemberAlreadyExistsError",
     "ProjectNotFoundError",
     "ProjectService",
+    "RepositoryError",
     "ServiceError",
+    "StoredFile",
+    "UnsupportedDocumentTypeError",
     "UserNotFoundError",
     "UserService",
     "UsernameAlreadyExistsError",
