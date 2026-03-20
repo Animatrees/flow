@@ -1,0 +1,153 @@
+from collections.abc import Sequence
+
+from sqlalchemy import exists, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Project, ProjectMember, User
+from app.db.repositories.exceptions import (
+    ConflictError,
+    ProjectNotFoundError,
+    RepositoryError,
+    UserNotFoundError,
+)
+from app.schemas.project import (
+    ProjectCreateWithOwner,
+    ProjectMemberRead,
+    ProjectRead,
+    ProjectUpdate,
+)
+from app.schemas.type_ids import ProjectId, UserId
+from app.services.repositories.project_repository import AbstractProjectRepository
+
+
+class ProjectRepository(AbstractProjectRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_id(self, id_: ProjectId) -> ProjectRead | None:
+        project = await self.session.get(Project, id_)
+        return ProjectRead.model_validate(project) if project is not None else None
+
+    async def get_all(self) -> Sequence[ProjectRead]:
+        statement = select(Project).order_by(Project.created_at, Project.id)
+        projects = await self.session.scalars(statement)
+        return [ProjectRead.model_validate(project) for project in projects]
+
+    async def create(self, data: ProjectCreateWithOwner) -> ProjectRead:
+        project = Project(**data.model_dump())
+        self.session.add(project)
+
+        try:
+            await self.session.flush()
+        except IntegrityError as err:
+            raise self._map_project_integrity_error(err) from err
+
+        return ProjectRead.model_validate(project)
+
+    async def update(self, id_: ProjectId, data: ProjectUpdate) -> ProjectRead | None:
+        project = await self.session.get(Project, id_)
+        if project is None:
+            return None
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(project, field, value)
+
+        try:
+            await self.session.flush()
+        except IntegrityError as err:
+            raise self._map_project_integrity_error(err) from err
+
+        return ProjectRead.model_validate(project)
+
+    async def delete(self, id_: ProjectId) -> bool:
+        project = await self.session.get(Project, id_)
+        if project is None:
+            return False
+
+        await self.session.delete(project)
+        await self.session.flush()
+        return True
+
+    async def get_all_for_user(self, user_id: UserId) -> Sequence[ProjectRead]:
+        membership_exists = exists(
+            select(ProjectMember.project_id).where(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+        statement = (
+            select(Project)
+            .where(or_(Project.owner_id == user_id, membership_exists))
+            .order_by(Project.created_at, Project.id)
+        )
+        projects = await self.session.scalars(statement)
+        return [ProjectRead.model_validate(project) for project in projects]
+
+    async def is_member(self, project_id: ProjectId, user_id: UserId) -> bool:
+        statement = select(
+            exists().where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+        return bool(await self.session.scalar(statement))
+
+    async def add_member(self, project_id: ProjectId, user_id: UserId) -> ProjectMemberRead:
+        await self._ensure_project_exists(project_id)
+        await self._ensure_user_exists(user_id)
+
+        member = ProjectMember(project_id=project_id, user_id=user_id)
+        self.session.add(member)
+
+        try:
+            await self.session.flush()
+        except IntegrityError as err:
+            raise self._map_member_integrity_error(err, project_id, user_id) from err
+
+        return ProjectMemberRead.model_validate(member)
+
+    async def _ensure_project_exists(self, project_id: ProjectId) -> None:
+        if await self.session.get(Project, project_id) is None:
+            msg = f"Project with id '{project_id}' was not found."
+            raise ProjectNotFoundError(msg)
+
+    async def _ensure_user_exists(self, user_id: UserId) -> None:
+        if await self.session.get(User, user_id) is None:
+            msg = f"User with id '{user_id}' was not found."
+            raise UserNotFoundError(msg)
+
+    @staticmethod
+    def _map_project_integrity_error(err: IntegrityError) -> RepositoryError:
+        error_text = str(err.orig).lower()
+        if "end_date" in error_text and "start_date" in error_text:
+            return RepositoryError("Failed to persist project due to invalid project dates.")
+
+        return RepositoryError("Failed to persist project due to database conflict.")
+
+    @staticmethod
+    def _map_member_integrity_error(
+        err: IntegrityError,
+        project_id: ProjectId,
+        user_id: UserId,
+    ) -> RepositoryError:
+        error_text = str(err.orig).lower()
+
+        if "project_members" in error_text and "unique" in error_text:
+            return ConflictError("User is already a participant of this project.")
+
+        if (
+            "project_members.project_id" in error_text
+            or "fk_project_members_project_id_projects" in error_text
+        ):
+            msg = f"Project with id '{project_id}' was not found."
+            return ProjectNotFoundError(msg)
+
+        if (
+            "project_members.user_id" in error_text
+            or "fk_project_members_user_id_users" in error_text
+        ):
+            msg = f"User with id '{user_id}' was not found."
+            return UserNotFoundError(msg)
+
+        return RepositoryError("Failed to persist project member due to database conflict.")
