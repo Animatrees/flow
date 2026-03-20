@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from app.schemas import UserAuthRead, UserCreate, UserUpdate
+from app.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
 from app.services import (
     EmailAlreadyExistsError,
     PermissionDeniedError,
@@ -20,9 +20,9 @@ from tests.unit.fakes.user_repository import (
     build_user_auth_read as make_user_auth_read,
 )
 
-FIRST_USER_ID = UUID("11111111-1111-1111-1111-111111111111")
-SECOND_USER_ID = UUID("22222222-2222-2222-2222-222222222222")
-MISSING_USER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+FIRST_USER_ID = UserId(UUID("11111111-1111-1111-1111-111111111111"))
+SECOND_USER_ID = UserId(UUID("22222222-2222-2222-2222-222222222222"))
+MISSING_USER_ID = UserId(UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 
@@ -116,7 +116,7 @@ async def test_user_service_get_by_id_raises_for_missing_user(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_service.get_by_id(MISSING_USER_ID)
+        await user_service.get_by_id(UserId(MISSING_USER_ID))
 
 
 @pytest.mark.anyio

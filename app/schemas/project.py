@@ -1,9 +1,10 @@
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Annotated
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
+
+from app.schemas.type_ids import ProjectId, UserId
 
 type TrimmedString = Annotated[str, StringConstraints(strip_whitespace=True)]
 type NonEmptyString = Annotated[TrimmedString, StringConstraints(min_length=1)]
@@ -26,7 +27,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectCreateWithOwner(ProjectCreate):
-    owner_id: UUID
+    owner_id: UserId
 
 
 class ProjectUpdate(BaseModel):
@@ -42,10 +43,10 @@ class ProjectUpdate(BaseModel):
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: ProjectId
     name: str
     description: str
-    owner_id: UUID
+    owner_id: UserId
     start_date: date
     end_date: date
     status: ProjectStatus
@@ -55,5 +56,5 @@ class ProjectRead(BaseModel):
 class ProjectMemberRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    project_id: UUID
-    user_id: UUID
+    project_id: ProjectId
+    user_id: UserId

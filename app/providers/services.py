@@ -1,9 +1,7 @@
 from dishka import Provider, Scope, provide
 
 from app.core.config import AuthJWT
-from app.services import AuthService, UserService
-from app.services.jwt_service import JWTService
-from app.services.user_repository import AbstractUserRepository
+from app.services import AbstractUserRepository, AuthService, JWTService, UserService
 
 
 class ServiceProvider(Provider):

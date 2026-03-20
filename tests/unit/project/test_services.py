@@ -12,7 +12,7 @@ from app.schemas import (
     ProjectUpdate,
     UserRead,
 )
-from app.schemas.project import ProjectCreateWithOwner
+from app.schemas.project import ProjectCreateWithOwner, ProjectId, UserId
 from app.services import (
     ConflictError,
     InvalidProjectDatesError,
@@ -24,19 +24,19 @@ from app.services import (
 )
 from tests.unit.fakes.project_repository import InMemoryProjectRepository, build_project_read
 
-OWNER_ID = UUID("11111111-1111-1111-1111-111111111111")
-PARTICIPANT_ID = UUID("22222222-2222-2222-2222-222222222222")
-OUTSIDER_ID = UUID("33333333-3333-3333-3333-333333333333")
-SECOND_OWNER_ID = UUID("44444444-4444-4444-4444-444444444444")
-PROJECT_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-SECOND_PROJECT_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-MISSING_PROJECT_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+OWNER_ID = UserId(UUID("11111111-1111-1111-1111-111111111111"))
+PARTICIPANT_ID = UserId(UUID("22222222-2222-2222-2222-222222222222"))
+OUTSIDER_ID = UserId(UUID("33333333-3333-3333-3333-333333333333"))
+SECOND_OWNER_ID = UserId(UUID("44444444-4444-4444-4444-444444444444"))
+PROJECT_ID = ProjectId(UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+SECOND_PROJECT_ID = ProjectId(UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"))
+MISSING_PROJECT_ID = ProjectId(UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"))
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def build_user(user_id: UUID, username: str, email: str) -> UserRead:
     return UserRead(
-        id=user_id,
+        id=UserId(user_id),
         username=username,
         email=email,
         created_at=CREATED_AT,
@@ -70,7 +70,7 @@ def existing_project() -> ProjectRead:
         data=ProjectCreateWithOwner(
             name="Flow",
             description="Educational backend",
-            owner_id=OWNER_ID,
+            owner_id=UserId(OWNER_ID),
             start_date=date(2026, 1, 1),
             end_date=date(2026, 12, 31),
             status=ProjectStatus.OPEN,
@@ -86,7 +86,7 @@ def second_project() -> ProjectRead:
         data=ProjectCreateWithOwner(
             name="Second Flow",
             description="",
-            owner_id=SECOND_OWNER_ID,
+            owner_id=UserId(SECOND_OWNER_ID),
             start_date=date(2026, 2, 1),
             end_date=date(2026, 10, 1),
             status=ProjectStatus.WIP,
@@ -103,7 +103,7 @@ def project_repository(
     return InMemoryProjectRepository(
         projects=[existing_project, second_project],
         members=[
-            ProjectMemberRead(project_id=PROJECT_ID, user_id=PARTICIPANT_ID),
+            ProjectMemberRead(project_id=ProjectId(PROJECT_ID), user_id=UserId(PARTICIPANT_ID)),
         ],
         id_factory=lambda: UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
     )
@@ -377,7 +377,7 @@ async def test_project_service_add_member_rejects_outsider(
         ProjectAccessDeniedError,
         match=re.escape("You do not have access to this project."),
     ):
-        await project_service.add_member(outsider, existing_project.id, UUID(int=1))
+        await project_service.add_member(outsider, existing_project.id, UserId(UUID(int=1)))
 
 
 @pytest.mark.anyio

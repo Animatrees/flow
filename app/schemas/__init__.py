@@ -6,11 +6,13 @@ from app.schemas.project import (
     ProjectStatus,
     ProjectUpdate,
 )
+from app.schemas.type_ids import ProjectId, UserId
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 
 __all__ = [
     "LoginRequest",
     "ProjectCreate",
+    "ProjectId",
     "ProjectMemberRead",
     "ProjectRead",
     "ProjectStatus",
@@ -18,6 +20,7 @@ __all__ = [
     "RegisterRequest",
     "UserAuthRead",
     "UserCreate",
+    "UserId",
     "UserRead",
     "UserUpdate",
 ]

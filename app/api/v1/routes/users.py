@@ -1,12 +1,11 @@
 from typing import Annotated
-from uuid import UUID
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, status
 
 from app.api.v1.get_current_user import get_current_user
-from app.schemas import UserRead, UserUpdate
+from app.schemas import UserId, UserRead, UserUpdate
 from app.schemas.user import LowerEmail, Username
 from app.services import UserService
 
@@ -53,7 +52,7 @@ async def get_user_by_email(
     status_code=status.HTTP_200_OK,
 )
 async def get_user_by_id(
-    user_id: UUID,
+    user_id: UserId,
     user_service: FromDishka[UserService],
 ) -> UserRead:
     return await user_service.get_by_id(user_id)
@@ -64,7 +63,7 @@ async def get_user_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def update_user(
-    user_id: UUID,
+    user_id: UserId,
     data: UserUpdate,
     user_service: FromDishka[UserService],
     current_user: Annotated[UserRead, Depends(get_current_user)],

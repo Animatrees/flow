@@ -10,13 +10,13 @@ from app.db.repositories import (
     UsernameAlreadyExistsError,
     UserRepository,
 )
-from app.schemas import UserAuthRead, UserCreate, UserUpdate
+from app.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
 
 pytestmark = pytest.mark.anyio
 
-FIRST_USER_ID = UUID("11111111-1111-1111-1111-111111111111")
-SECOND_USER_ID = UUID("22222222-2222-2222-2222-222222222222")
-MISSING_USER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+FIRST_USER_ID = UserId(UUID("11111111-1111-1111-1111-111111111111"))
+SECOND_USER_ID = UserId(UUID("22222222-2222-2222-2222-222222222222"))
+MISSING_USER_ID = UserId(UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 DEFAULT_PASSWORD_HASH = "hashed-password"
 
@@ -191,7 +191,7 @@ async def test_get_auth_by_username_returns_auth_projection(
     auth_user = await repository.get_auth_by_username(user.username)
 
     assert auth_user == UserAuthRead(
-        id=user.id,
+        id=UserId(user.id),
         username=user.username,
         email=user.email,
         password_hash="stored-password-hash",
@@ -211,11 +211,11 @@ async def test_update_persists_changed_fields(
     )
 
     updated_user = await repository.update(
-        user.id,
+        UserId(user.id),
         UserUpdate(username="updated.user", email="updated@example.com"),
     )
 
-    reloaded_user = await repository.get_by_id(user.id)
+    reloaded_user = await repository.get_by_id(UserId(user.id))
 
     assert updated_user == reloaded_user
     assert updated_user is not None
@@ -251,7 +251,7 @@ async def test_update_maps_email_uniqueness_violation(
 
     with pytest.raises(EmailAlreadyExistsError):
         await repository.update(
-            second_user.id,
+            UserId(second_user.id),
             UserUpdate(email="first@example.com"),
         )
 
@@ -267,10 +267,10 @@ async def test_delete_removes_existing_user(
         email="first@example.com",
     )
 
-    deleted = await repository.delete(user.id)
+    deleted = await repository.delete(UserId(user.id))
 
     assert deleted is True
-    assert await repository.get_by_id(user.id) is None
+    assert await repository.get_by_id(UserId(user.id)) is None
 
 
 async def test_delete_returns_false_for_missing_user(repository: UserRepository) -> None:

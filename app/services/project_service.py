@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from datetime import date
-from uuid import UUID
 
 from app.schemas.project import (
     ProjectCreate,
@@ -9,6 +8,7 @@ from app.schemas.project import (
     ProjectRead,
     ProjectUpdate,
 )
+from app.schemas.type_ids import ProjectId, UserId
 from app.schemas.user import UserRead
 from app.services.exceptions import (
     ConflictError,
@@ -18,7 +18,7 @@ from app.services.exceptions import (
     ProjectMemberAlreadyExistsError,
     ProjectNotFoundError,
 )
-from app.services.project_repository import AbstractProjectRepository
+from app.services.repositories.project_repository import AbstractProjectRepository
 
 
 class ProjectService:
@@ -37,7 +37,7 @@ class ProjectService:
             )
         )
 
-    async def get_by_id(self, current_user: UserRead, project_id: UUID) -> ProjectRead:
+    async def get_by_id(self, current_user: UserRead, project_id: ProjectId) -> ProjectRead:
         project = await self._get_project(project_id)
         await self._ensure_project_access(current_user, project)
         return project
@@ -51,7 +51,7 @@ class ProjectService:
     async def update(
         self,
         current_user: UserRead,
-        project_id: UUID,
+        project_id: ProjectId,
         data: ProjectUpdate,
     ) -> ProjectRead:
         project = await self._get_project(project_id)
@@ -67,7 +67,7 @@ class ProjectService:
             raise ProjectNotFoundError(msg)
         return updated_project
 
-    async def delete(self, current_user: UserRead, project_id: UUID) -> None:
+    async def delete(self, current_user: UserRead, project_id: ProjectId) -> None:
         project = await self._get_project(project_id)
         await self._ensure_owner_access(current_user, project)
 
@@ -79,8 +79,8 @@ class ProjectService:
     async def add_member(
         self,
         current_user: UserRead,
-        project_id: UUID,
-        user_id: UUID,
+        project_id: ProjectId,
+        user_id: UserId,
     ) -> ProjectMemberRead:
         project = await self._get_project(project_id)
         await self._ensure_owner_access(current_user, project)
@@ -93,7 +93,7 @@ class ProjectService:
         except ConflictError as err:
             raise ProjectMemberAlreadyExistsError(str(err)) from err
 
-    async def _get_project(self, project_id: UUID) -> ProjectRead:
+    async def _get_project(self, project_id: ProjectId) -> ProjectRead:
         project = await self.repo.get_by_id(project_id)
         if project is None:
             msg = f"Project with id '{project_id}' was not found."

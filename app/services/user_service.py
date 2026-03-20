@@ -1,6 +1,6 @@
 from collections.abc import Sequence
-from uuid import UUID
 
+from app.schemas.type_ids import UserId
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.exceptions import (
     ConflictError,
@@ -9,7 +9,7 @@ from app.services.exceptions import (
     UsernameAlreadyExistsError,
     UserNotFoundError,
 )
-from app.services.user_repository import AbstractUserRepository
+from app.services.repositories.user_repository import AbstractUserRepository
 
 
 class UserService:
@@ -22,7 +22,7 @@ class UserService:
         except ConflictError as err:
             raise self._map_conflict_error(err) from err
 
-    async def get_by_id(self, user_id: UUID) -> UserRead:
+    async def get_by_id(self, user_id: UserId) -> UserRead:
         user = await self.repo.get_by_id(user_id)
         if user is None:
             msg = f"User with id '{user_id}' was not found."
@@ -49,7 +49,7 @@ class UserService:
     async def get_all(self) -> Sequence[UserRead]:
         return await self.repo.get_all()
 
-    async def update(self, current_user: UserRead, user_id: UUID, data: UserUpdate) -> UserRead:
+    async def update(self, current_user: UserRead, user_id: UserId, data: UserUpdate) -> UserRead:
         if current_user.id != user_id:
             raise PermissionDeniedError
         try:
@@ -62,7 +62,7 @@ class UserService:
             raise UserNotFoundError(msg)
         return user
 
-    async def delete(self, current_user: UserRead, user_id: UUID) -> None:
+    async def delete(self, current_user: UserRead, user_id: UserId) -> None:
         if current_user.id != user_id:
             raise PermissionDeniedError
         success = await self.repo.delete(user_id)

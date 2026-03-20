@@ -8,6 +8,7 @@ from app.schemas.project import (
     ProjectRead,
     ProjectUpdate,
 )
+from app.schemas.type_ids import ProjectId, UserId
 from app.services import AbstractProjectRepository, ConflictError
 
 
@@ -18,7 +19,7 @@ def build_project_read(
     created_at: datetime | None = None,
 ) -> ProjectRead:
     return ProjectRead(
-        id=project_id,
+        id=ProjectId(project_id),
         name=data.name,
         description=data.description,
         owner_id=data.owner_id,
@@ -54,7 +55,7 @@ class InMemoryProjectRepository(AbstractProjectRepository):
 
     async def create(self, data: ProjectCreateWithOwner) -> ProjectRead:
         created_project = ProjectRead(
-            id=self.id_factory(),
+            id=ProjectId(self.id_factory()),
             name=data.name,
             description=data.description,
             owner_id=data.owner_id,
@@ -90,7 +91,7 @@ class InMemoryProjectRepository(AbstractProjectRepository):
 
     async def get_members(self, project_id: UUID) -> Sequence[ProjectMemberRead]:
         return [
-            ProjectMemberRead(project_id=project_id, user_id=user_id)
+            ProjectMemberRead(project_id=ProjectId(project_id), user_id=UserId(user_id))
             for user_id in self.members.get(project_id, set())
         ]
 
@@ -107,4 +108,4 @@ class InMemoryProjectRepository(AbstractProjectRepository):
             raise ConflictError(msg)
 
         project_members.add(user_id)
-        return ProjectMemberRead(project_id=project_id, user_id=user_id)
+        return ProjectMemberRead(project_id=ProjectId(project_id), user_id=UserId(user_id))

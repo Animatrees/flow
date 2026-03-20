@@ -1,5 +1,4 @@
 from app.services.auth_service import AuthService
-from app.services.base_repository import AbstractRepository
 from app.services.exceptions import (
     AccessDeniedError,
     ConflictError,
@@ -18,10 +17,11 @@ from app.services.exceptions import (
     UserNotFoundError,
 )
 from app.services.jwt_service import JWTService
-from app.services.project_repository import AbstractProjectRepository
 from app.services.project_service import ProjectService
+from app.services.repositories.base_repository import AbstractRepository
+from app.services.repositories.project_repository import AbstractProjectRepository
+from app.services.repositories.user_repository import AbstractUserRepository
 from app.services.security import hash_password, verify_password
-from app.services.user_repository import AbstractUserRepository
 from app.services.user_service import UserService
 
 __all__ = [

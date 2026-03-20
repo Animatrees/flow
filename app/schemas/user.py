@@ -1,7 +1,6 @@
 import re
 from datetime import datetime
 from typing import Annotated
-from uuid import UUID
 
 from pydantic import (
     AfterValidator,
@@ -10,6 +9,8 @@ from pydantic import (
     EmailStr,
     StringConstraints,
 )
+
+from app.schemas.type_ids import UserId
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_.\-]+$")
 
@@ -53,7 +54,7 @@ class UserUpdate(BaseModel):
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: UserId
     username: str
     email: str
     created_at: datetime
@@ -62,7 +63,7 @@ class UserRead(BaseModel):
 class UserAuthRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: UserId
     username: str
     email: str
     password_hash: str

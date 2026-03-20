@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from app.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.schemas.type_ids import UserId
 from app.services import (
     AbstractUserRepository,
     EmailAlreadyExistsError,
@@ -19,7 +20,7 @@ def build_user_auth_read(
     created_at: datetime | None = None,
 ) -> UserAuthRead:
     return UserAuthRead(
-        id=user_id,
+        id=UserId(user_id),
         username=username,
         email=email,
         password_hash=password_hash,

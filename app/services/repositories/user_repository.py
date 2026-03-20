@@ -1,10 +1,8 @@
 from abc import abstractmethod
-from uuid import UUID
 
+from app.schemas.type_ids import UserId
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
-from app.services.base_repository import AbstractRepository
-
-type UserId = UUID
+from app.services.repositories.base_repository import AbstractRepository
 
 
 class AbstractUserRepository(AbstractRepository[UserId, UserCreate, UserRead, UserUpdate]):
