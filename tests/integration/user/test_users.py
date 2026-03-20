@@ -137,10 +137,9 @@ async def test_update_user_returns_updated_user(client: httpx.AsyncClient) -> No
         username="valid.user",
         email="user@example.com",
     )
-    headers = await authorized_headers(
+    headers = await authorization_header_for_existing_user(
         client,
-        username="auth.user",
-        email="auth@example.com",
+        username="valid.user",
     )
 
     response = await client.patch(
@@ -171,7 +170,7 @@ async def test_update_user_returns_conflict_for_duplicate_email(
     )
     headers = await authorization_header_for_existing_user(
         client,
-        username="first.user",
+        username="second.user",
     )
 
     response = await client.patch(
@@ -185,6 +184,39 @@ async def test_update_user_returns_conflict_for_duplicate_email(
     assert response.status_code == 409
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json() == {"message": "Email 'first@example.com' already exists."}
+
+
+async def test_update_user_returns_forbidden_for_another_user(
+    client: httpx.AsyncClient,
+) -> None:
+    first_response = await register_user(
+        client,
+        username="first.user",
+        email="first@example.com",
+    )
+    second_response = await register_user(
+        client,
+        username="second.user",
+        email="second@example.com",
+    )
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="first.user",
+    )
+
+    response = await client.patch(
+        f"/api/v1/users/{second_response.json()['id']}",
+        json={"email": "updated@example.com"},
+        headers=headers,
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert response.status_code == 403
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json() == {
+        "message": "You do not have sufficient permissions to perform this action."
+    }
 
 
 async def test_get_users_returns_all_users(client: httpx.AsyncClient) -> None:

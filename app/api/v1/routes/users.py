@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from dishka import FromDishka
@@ -66,5 +67,6 @@ async def update_user(
     user_id: UUID,
     data: UserUpdate,
     user_service: FromDishka[UserService],
+    current_user: Annotated[UserRead, Depends(get_current_user)],
 ) -> UserRead:
-    return await user_service.update(user_id, data)
+    return await user_service.update(current_user, user_id, data)

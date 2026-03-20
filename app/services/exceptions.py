@@ -37,6 +37,16 @@ class InvalidTokenError(ServiceError):
         super().__init__(message)
 
 
+class PermissionDeniedError(ServiceError):
+    """Raised when the user doesn't have sufficient permissions."""
+
+    def __init__(
+        self,
+        message: str = "You do not have sufficient permissions to perform this action.",
+    ) -> None:
+        super().__init__(message)
+
+
 class UsernameAlreadyExistsError(ConflictError):
     """Raised when a username is already in use."""
 

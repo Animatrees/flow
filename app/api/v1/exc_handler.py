@@ -7,7 +7,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.services import ConflictError, InvalidCredentialsError, NotFoundError, ServiceError
+from app.services import (
+    ConflictError,
+    InvalidCredentialsError,
+    NotFoundError,
+    PermissionDeniedError,
+    ServiceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +21,7 @@ exception_status_codes = {
     NotFoundError: status.HTTP_404_NOT_FOUND,
     ConflictError: status.HTTP_409_CONFLICT,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
+    PermissionDeniedError: status.HTTP_403_FORBIDDEN,
     ServiceError: status.HTTP_500_INTERNAL_SERVER_ERROR,
 }
 

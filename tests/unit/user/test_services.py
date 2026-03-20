@@ -10,11 +10,12 @@ from app.services import (
     EmailAlreadyExistsError as ServiceEmailAlreadyExistsError,
 )
 from app.services import (
-    UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
-)
-from app.services import (
+    PermissionDeniedError,
     UserNotFoundError,
     UserService,
+)
+from app.services import (
+    UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
 from tests.unit.fakes.user_repository import (
     InMemoryUserRepository,
@@ -192,6 +193,7 @@ async def test_user_service_update_returns_updated_user(
     existing_user: UserAuthRead,
 ) -> None:
     updated_user = await user_service.update(
+        to_user_read(existing_user),
         existing_user.id,
         UserUpdate(username="updated.user"),
     )
@@ -214,6 +216,7 @@ async def test_user_service_update_propagates_email_conflict(
         match=re.escape("Email is already taken."),
     ):
         await user_service.update(
+            to_user_read(existing_user),
             existing_user.id,
             UserUpdate(email="updated@example.com"),
         )
@@ -223,12 +226,40 @@ async def test_user_service_update_propagates_email_conflict(
 async def test_user_service_update_raises_for_missing_user(
     user_service: UserService,
 ) -> None:
+    missing_current_user = to_user_read(
+        make_user_auth_read(
+            user_id=MISSING_USER_ID,
+            username="missing.user",
+            email="missing@example.com",
+            password_hash="hashed-password",
+            created_at=CREATED_AT,
+        )
+    )
+
     with pytest.raises(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
         await user_service.update(
+            missing_current_user,
             MISSING_USER_ID,
+            UserUpdate(username="updated.user"),
+        )
+
+
+@pytest.mark.anyio
+async def test_user_service_update_raises_for_other_user(
+    user_service: UserService,
+    existing_user: UserAuthRead,
+    second_user: UserAuthRead,
+) -> None:
+    with pytest.raises(
+        PermissionDeniedError,
+        match=re.escape("You do not have sufficient permissions to perform this action."),
+    ):
+        await user_service.update(
+            to_user_read(existing_user),
+            second_user.id,
             UserUpdate(username="updated.user"),
         )
 
@@ -236,8 +267,9 @@ async def test_user_service_update_raises_for_missing_user(
 @pytest.mark.anyio
 async def test_user_service_delete_removes_existing_user(
     user_service: UserService,
+    existing_user: UserAuthRead,
 ) -> None:
-    result = await user_service.delete(FIRST_USER_ID)
+    result = await user_service.delete(to_user_read(existing_user), FIRST_USER_ID)
 
     assert result is None
 
@@ -252,8 +284,31 @@ async def test_user_service_delete_removes_existing_user(
 async def test_user_service_delete_raises_for_missing_user(
     user_service: UserService,
 ) -> None:
+    missing_current_user = to_user_read(
+        make_user_auth_read(
+            user_id=MISSING_USER_ID,
+            username="missing.user",
+            email="missing@example.com",
+            password_hash="hashed-password",
+            created_at=CREATED_AT,
+        )
+    )
+
     with pytest.raises(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_service.delete(MISSING_USER_ID)
+        await user_service.delete(missing_current_user, MISSING_USER_ID)
+
+
+@pytest.mark.anyio
+async def test_user_service_delete_raises_for_other_user(
+    user_service: UserService,
+    existing_user: UserAuthRead,
+    second_user: UserAuthRead,
+) -> None:
+    with pytest.raises(
+        PermissionDeniedError,
+        match=re.escape("You do not have sufficient permissions to perform this action."),
+    ):
+        await user_service.delete(to_user_read(existing_user), second_user.id)

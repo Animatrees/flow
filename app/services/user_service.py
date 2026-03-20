@@ -14,6 +14,7 @@ from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.exceptions import (
     ConflictError,
     EmailAlreadyExistsError,
+    PermissionDeniedError,
     UsernameAlreadyExistsError,
     UserNotFoundError,
 )
@@ -57,7 +58,9 @@ class UserService:
     async def get_all(self) -> Sequence[UserRead]:
         return await self.repo.get_all()
 
-    async def update(self, user_id: UUID, data: UserUpdate) -> UserRead:
+    async def update(self, current_user: UserRead, user_id: UUID, data: UserUpdate) -> UserRead:
+        if current_user.id != user_id:
+            raise PermissionDeniedError
         try:
             user = await self.repo.update(user_id, data)
         except RepositoryConflictError as err:
@@ -68,7 +71,9 @@ class UserService:
             raise UserNotFoundError(msg)
         return user
 
-    async def delete(self, user_id: UUID) -> None:
+    async def delete(self, current_user: UserRead, user_id: UUID) -> None:
+        if current_user.id != user_id:
+            raise PermissionDeniedError
         success = await self.repo.delete(user_id)
         if not success:
             msg = f"User with id '{user_id}' was not found."
