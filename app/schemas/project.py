@@ -17,7 +17,7 @@ class ProjectStatus(StrEnum):
 
 
 class ProjectCreate(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True)
+    model_config = ConfigDict(frozen=True)
 
     name: NonEmptyString
     description: TrimmedString = ""
@@ -31,7 +31,7 @@ class ProjectCreateWithOwner(ProjectCreate):
 
 
 class ProjectUpdate(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True)
+    model_config = ConfigDict(frozen=True)
 
     name: NonEmptyString | None = None
     description: TrimmedString | None = None
