@@ -1,15 +1,6 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from app.db.repositories import (
-    ConflictError as RepositoryConflictError,
-)
-from app.db.repositories import (
-    EmailAlreadyExistsError as RepositoryEmailAlreadyExistsError,
-)
-from app.db.repositories import (
-    UsernameAlreadyExistsError as RepositoryUsernameAlreadyExistsError,
-)
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.exceptions import (
     ConflictError,
@@ -28,7 +19,7 @@ class UserService:
     async def create(self, data: UserCreate) -> UserRead:
         try:
             return await self.repo.create(data)
-        except RepositoryConflictError as err:
+        except ConflictError as err:
             raise self._map_conflict_error(err) from err
 
     async def get_by_id(self, user_id: UUID) -> UserRead:
@@ -63,7 +54,7 @@ class UserService:
             raise PermissionDeniedError
         try:
             user = await self.repo.update(user_id, data)
-        except RepositoryConflictError as err:
+        except ConflictError as err:
             raise self._map_conflict_error(err) from err
 
         if user is None:
@@ -80,11 +71,11 @@ class UserService:
             raise UserNotFoundError(msg)
 
     @staticmethod
-    def _map_conflict_error(err: RepositoryConflictError) -> ConflictError:
-        if isinstance(err, RepositoryUsernameAlreadyExistsError):
+    def _map_conflict_error(err: ConflictError) -> ConflictError:
+        if isinstance(err, UsernameAlreadyExistsError):
             return UsernameAlreadyExistsError(str(err))
 
-        if isinstance(err, RepositoryEmailAlreadyExistsError):
+        if isinstance(err, EmailAlreadyExistsError):
             return EmailAlreadyExistsError(str(err))
 
         return ConflictError(str(err))

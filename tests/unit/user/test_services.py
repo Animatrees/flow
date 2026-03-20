@@ -4,18 +4,13 @@ from uuid import UUID
 
 import pytest
 
-from app.db.repositories import EmailAlreadyExistsError, UsernameAlreadyExistsError
 from app.schemas import UserAuthRead, UserCreate, UserUpdate
 from app.services import (
-    EmailAlreadyExistsError as ServiceEmailAlreadyExistsError,
-)
-from app.services import (
+    EmailAlreadyExistsError,
     PermissionDeniedError,
+    UsernameAlreadyExistsError,
     UserNotFoundError,
     UserService,
-)
-from app.services import (
-    UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
 from tests.unit.fakes.user_repository import (
     InMemoryUserRepository,
@@ -91,7 +86,7 @@ async def test_user_service_create_propagates_username_conflict(
     user_repository.create_error = UsernameAlreadyExistsError()
 
     with pytest.raises(
-        ServiceUsernameAlreadyExistsError,
+        UsernameAlreadyExistsError,
         match=re.escape("Username is already taken."),
     ):
         await user_service.create(
@@ -212,7 +207,7 @@ async def test_user_service_update_propagates_email_conflict(
     user_repository.update_error = EmailAlreadyExistsError()
 
     with pytest.raises(
-        ServiceEmailAlreadyExistsError,
+        EmailAlreadyExistsError,
         match=re.escape("Email is already taken."),
     ):
         await user_service.update(
