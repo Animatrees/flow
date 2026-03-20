@@ -45,9 +45,6 @@ class ProjectService:
     async def get_all_for_user(self, current_user: UserRead) -> Sequence[ProjectRead]:
         return await self.repo.get_all_for_user(current_user.id)
 
-    async def get_all(self) -> Sequence[ProjectRead]:
-        return await self.repo.get_all()
-
     async def update(
         self,
         current_user: UserRead,

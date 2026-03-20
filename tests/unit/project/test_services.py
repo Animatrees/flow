@@ -217,17 +217,6 @@ async def test_project_service_get_all_for_user_returns_accessible_projects(
 
 
 @pytest.mark.anyio
-async def test_project_service_get_all_returns_all_projects(
-    project_service: ProjectService,
-    existing_project: ProjectRead,
-    second_project: ProjectRead,
-) -> None:
-    projects = await project_service.get_all()
-
-    assert projects == [existing_project, second_project]
-
-
-@pytest.mark.anyio
 async def test_project_service_update_returns_updated_project_for_owner(
     project_service: ProjectService,
     owner: UserRead,
