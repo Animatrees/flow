@@ -1,7 +1,10 @@
 from uuid import UUID
 
 import httpx
+import jwt
 import pytest
+
+from tests.fixtures.jwt import TEST_AUTH_JWT
 
 pytestmark = pytest.mark.anyio
 
@@ -61,12 +64,12 @@ async def test_register_returns_conflict_for_duplicate_username(
     assert second_response.json() == {"message": "Username 'valid.user' already exists."}
 
 
-async def test_login_returns_authenticated_user(client: httpx.AsyncClient) -> None:
+async def test_login_returns_access_token(client: httpx.AsyncClient) -> None:
     register_response = await register_user(client)
 
     response = await client.post(
         "/api/v1/auth/login",
-        json={
+        data={
             "username": "valid.user",
             "password": TEST_PASSWORD,
         },
@@ -75,7 +78,17 @@ async def test_login_returns_authenticated_user(client: httpx.AsyncClient) -> No
     assert register_response.status_code == 201
     assert response.status_code == 200
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json()["id"] == register_response.json()["id"]
+    body = response.json()
+    payload = jwt.decode(
+        body["access_token"],
+        TEST_AUTH_JWT.public_key_path.read_text(),
+        algorithms=[TEST_AUTH_JWT.algorithm],
+    )
+
+    assert body["token_type"] == "Bearer"
+    assert body["exp"] > body["iat"]
+    assert payload["sub"] == register_response.json()["id"]
+    assert payload["username"] == "valid.user"
 
 
 async def test_login_returns_unauthorized_for_invalid_credentials(
@@ -83,7 +96,7 @@ async def test_login_returns_unauthorized_for_invalid_credentials(
 ) -> None:
     response = await client.post(
         "/api/v1/auth/login",
-        json={
+        data={
             "username": "missing.user",
             "password": TEST_PASSWORD,
         },

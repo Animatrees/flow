@@ -4,6 +4,7 @@ from app.schemas import LoginRequest, RegisterRequest, UserCreate
 from app.services import (
     AuthService,
     InvalidCredentialsError,
+    InvalidTokenError,
     UserService,
     hash_password,
 )
@@ -13,6 +14,8 @@ from app.services import (
 from app.services import (
     UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
+from app.services.jwt_service import JWTService
+from tests.fixtures.jwt import TEST_AUTH_JWT
 from tests.unit.fakes.user_repository import InMemoryUserRepository
 
 
@@ -27,8 +30,13 @@ def user_service(user_repository: InMemoryUserRepository) -> UserService:
 
 
 @pytest.fixture
-def auth_service(user_service: UserService) -> AuthService:
-    return AuthService(user_service)
+def jwt_service() -> JWTService:
+    return JWTService(TEST_AUTH_JWT)
+
+
+@pytest.fixture
+def auth_service(user_service: UserService, jwt_service: JWTService) -> AuthService:
+    return AuthService(user_service, jwt_service)
 
 
 @pytest.fixture
@@ -81,8 +89,9 @@ async def test_auth_service_register_rejects_duplicate_email(
 
 
 @pytest.mark.anyio
-async def test_auth_service_authenticate_returns_user(
+async def test_auth_service_authenticate_returns_token(
     auth_service: AuthService,
+    jwt_service: JWTService,
     user_repository: InMemoryUserRepository,
 ) -> None:
     password = "StrongPass1!"
@@ -94,11 +103,16 @@ async def test_auth_service_authenticate_returns_user(
         )
     )
 
-    authenticated_user = await auth_service.authenticate(
+    token_response = await auth_service.authenticate(
         LoginRequest(username="valid.user", password=password)
     )
 
-    assert authenticated_user == created_user
+    payload = jwt_service.decode_access_token(token_response.access_token)
+
+    assert token_response.token_type == "Bearer"
+    assert token_response.exp > token_response.iat
+    assert payload["sub"] == str(created_user.id)
+    assert payload["username"] == created_user.username
 
 
 @pytest.mark.anyio
@@ -126,3 +140,10 @@ async def test_auth_service_authenticate_rejects_missing_user(
         await auth_service.authenticate(
             LoginRequest(username="missing.user", password="StrongPass1!")
         )
+
+
+def test_jwt_service_decode_access_token_rejects_invalid_token(
+    jwt_service: JWTService,
+) -> None:
+    with pytest.raises(InvalidTokenError, match="Invalid access token"):
+        jwt_service.decode_access_token("invalid-token")

@@ -3,6 +3,7 @@ from typing import Annotated, Self
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     StringConstraints,
     model_validator,
 )
@@ -44,3 +45,10 @@ class LoginRequest(BaseModel):
 
     username: Username
     password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = Field(default="Bearer")
+    exp: int
+    iat: int

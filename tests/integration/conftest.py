@@ -21,7 +21,8 @@ from app.api.v1 import init_exception_handler
 from app.api.v1.routes import init_routes
 from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, Settings
 from app.db.models import Base
-from app.providers import RepositoryProvider, ServiceProvider
+from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider
+from tests.fixtures.jwt import TEST_AUTH_JWT
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -131,8 +132,21 @@ async def db_session(
 async def container(tmp_path: Path) -> AsyncIterator[AsyncContainer]:
     db_url = f"sqlite+aiosqlite:///{tmp_path / 'test.db'}"
     await prepare_database(db_url)
+    settings = Settings.model_construct(
+        run=RunConfig(),
+        api=ApiPrefix(),
+        db=DatabaseConfig.model_construct(
+            name="test",
+            user="test",
+            password=SecretStr("test"),
+            host="localhost",
+            port=5432,
+        ),
+        auth_jwt=TEST_AUTH_JWT,
+    )
 
     test_container = make_async_container(
+        ConfigProvider(config=settings),
         ApiTestDatabaseProvider(db_url),
         RepositoryProvider(),
         ServiceProvider(),
@@ -155,6 +169,7 @@ def settings() -> Settings:
             host="localhost",
             port=5432,
         ),
+        auth_jwt=TEST_AUTH_JWT,
     )
 
 

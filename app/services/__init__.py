@@ -4,11 +4,13 @@ from app.services.exceptions import (
     ConflictError,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
+    InvalidTokenError,
     NotFoundError,
     ServiceError,
     UsernameAlreadyExistsError,
     UserNotFoundError,
 )
+from app.services.jwt_service import JWTService
 from app.services.security import hash_password, verify_password
 from app.services.user_repository import AbstractUserRepository
 from app.services.user_service import UserService
@@ -20,6 +22,8 @@ __all__ = [
     "ConflictError",
     "EmailAlreadyExistsError",
     "InvalidCredentialsError",
+    "InvalidTokenError",
+    "JWTService",
     "NotFoundError",
     "ServiceError",
     "UserNotFoundError",

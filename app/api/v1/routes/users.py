@@ -2,13 +2,17 @@ from uuid import UUID
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.v1.get_current_user import get_current_user
 from app.schemas import UserRead, UserUpdate
 from app.schemas.user import LowerEmail, Username
 from app.services import UserService
 
-router = APIRouter(route_class=DishkaRoute)
+router = APIRouter(
+    route_class=DishkaRoute,
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get(

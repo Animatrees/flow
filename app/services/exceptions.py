@@ -27,6 +27,16 @@ class InvalidCredentialsError(ServiceError):
         super().__init__(message)
 
 
+class InvalidTokenError(ServiceError):
+    """Raised when an access token is invalid."""
+
+    def __init__(
+        self,
+        message: str = "Invalid access token.",
+    ) -> None:
+        super().__init__(message)
+
+
 class UsernameAlreadyExistsError(ConflictError):
     """Raised when a username is already in use."""
 

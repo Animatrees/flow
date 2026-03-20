@@ -33,7 +33,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Flow",
         version="0.1.0",
-        swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"},
+        swagger_ui_parameters={
+            "syntaxHighlight.theme": "obsidian",
+            "persistAuthorization": True,
+        },
         lifespan=lifespan,
         docs_url="/docs",
     )

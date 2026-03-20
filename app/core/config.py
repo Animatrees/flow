@@ -39,6 +39,13 @@ class DatabaseConfig(BaseModel):
         )
 
 
+class AuthJWT(BaseModel):
+    private_key_path: Path
+    public_key_path: Path
+    algorithm: str = "RS256"
+    access_token_expire_minutes: int = 60
+
+
 class Settings(BaseSettings):
     ENV_FILE_PATH: Path = Path(__file__).resolve().parent.parent.parent / ".env"
 
@@ -54,3 +61,4 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    auth_jwt: AuthJWT = Field(default_factory=AuthJWT)
