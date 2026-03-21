@@ -72,7 +72,7 @@ async def seed_member(
     project_id: UUID,
     user_id: UUID,
 ) -> ProjectMember:
-    member = ProjectMember(project_id=project_id, user_id=user_id, created_at=CREATED_AT)
+    member = ProjectMember(project_id=project_id, user_id=user_id)
     session.add(member)
     await session.flush()
     return member

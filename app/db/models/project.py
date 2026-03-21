@@ -5,13 +5,13 @@ from sqlalchemy import CheckConstraint, Date, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models import Base
-from app.db.models.mixins import UUIDPkMixin
+from app.db.models.mixins import TimestampMixin, UUIDPkMixin
 from app.domain.schemas import ProjectStatus
 
 PROJECT_STATUS_VALUES = tuple(status.value for status in ProjectStatus)
 
 
-class Project(Base, UUIDPkMixin):
+class Project(Base, UUIDPkMixin, TimestampMixin):
     __tablename__ = "projects"
 
     name: Mapped[str] = mapped_column(String(255))

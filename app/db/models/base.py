@@ -1,8 +1,7 @@
-from datetime import datetime
 from typing import ClassVar
 
-from sqlalchemy import DateTime, MetaData, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import MetaData
+from sqlalchemy.orm import DeclarativeBase
 
 convention = {
     "ix": "ix_%(column_0_label)s",
@@ -19,14 +18,3 @@ class Base(DeclarativeBase):
     __mapper_args__: ClassVar[dict[str, bool]] = {"eager_defaults": True}
 
     metadata = MetaData(naming_convention=convention)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
-
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )

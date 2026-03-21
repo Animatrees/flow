@@ -4,10 +4,10 @@ from sqlalchemy import CheckConstraint, DateTime, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models import Base
-from app.db.models.mixins import UUIDPkMixin
+from app.db.models.mixins import TimestampMixin, UUIDPkMixin
 
 
-class User(Base, UUIDPkMixin):
+class User(Base, UUIDPkMixin, TimestampMixin):
     __tablename__ = "users"
 
     username: Mapped[str] = mapped_column(String(50), unique=True)
