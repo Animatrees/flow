@@ -1,0 +1,35 @@
+interfaces = []
+exclude = [
+    "**/*__pycache__",
+    "**/*egg-info",
+    "**/docs",
+    "**/tests",
+    "**/venv",
+]
+source_roots = [
+    ".",
+]
+
+[[modules ]]
+path = "app.api"
+depends_on = ["app.core", "app.services", "app.domain"]
+
+[[modules ]]
+path = "app.services"
+depends_on = ["app.domain", "app.core"]
+
+[[modules ]]
+path = "app.domain"
+depends_on = []
+
+[[modules ]]
+path = "app.core"
+depends_on = []
+
+[[modules ]]
+path = "app.db"
+depends_on = ["app.services", "app.domain"]
+
+[[modules ]]
+path = "app.providers"
+depends_on = ["app.services", "app.core", "app.db"]
