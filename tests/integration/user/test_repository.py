@@ -50,7 +50,11 @@ async def seed_user(
         username=username,
         email=email,
         password_hash=password_hash,
+        is_active=True,
         created_at=CREATED_AT,
+        updated_at=CREATED_AT,
+        last_login_at=None,
+        deleted_at=None,
     )
     session.add(user)
     await session.flush()
@@ -158,24 +162,6 @@ async def test_get_by_username_returns_matching_user(
     assert found_user.email == user.email
 
 
-async def test_get_by_email_returns_matching_user(
-    db_session: AsyncSession,
-    repository: UserRepository,
-) -> None:
-    user = await seed_user(
-        db_session,
-        user_id=FIRST_USER_ID,
-        username="first.user",
-        email="first@example.com",
-    )
-
-    found_user = await repository.get_by_email(user.email)
-
-    assert found_user is not None
-    assert found_user.id == user.id
-    assert found_user.username == user.username
-
-
 async def test_get_auth_by_username_returns_auth_projection(
     db_session: AsyncSession,
     repository: UserRepository,
@@ -195,7 +181,11 @@ async def test_get_auth_by_username_returns_auth_projection(
         username=user.username,
         email=user.email,
         password_hash="stored-password-hash",
+        is_active=True,
         created_at=CREATED_AT,
+        updated_at=CREATED_AT,
+        last_login_at=None,
+        deleted_at=None,
     )
 
 
@@ -267,13 +257,79 @@ async def test_delete_removes_existing_user(
         email="first@example.com",
     )
 
-    deleted = await repository.delete(UserId(user.id))
+    deleted = await repository.soft_delete(UserId(user.id))
 
     assert deleted is True
     assert await repository.get_by_id(UserId(user.id)) is None
+    soft_deleted_user = await db_session.get(User, user.id)
+    assert soft_deleted_user is not None
+    assert soft_deleted_user.deleted_at is not None
+    assert soft_deleted_user.is_active is False
+    assert soft_deleted_user.username == f"deleted-{user.id}"
+    assert soft_deleted_user.email == f"deleted-{user.id}@deleted.local"
 
 
 async def test_delete_returns_false_for_missing_user(repository: UserRepository) -> None:
-    deleted = await repository.delete(MISSING_USER_ID)
+    deleted = await repository.soft_delete(MISSING_USER_ID)
 
     assert deleted is False
+
+
+async def test_create_allows_reuse_of_username_and_email_after_soft_delete(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+    await repository.soft_delete(UserId(user.id))
+
+    recreated_user = await repository.create(
+        UserCreate(
+            username="first.user",
+            email="first@example.com",
+            password_hash=DEFAULT_PASSWORD_HASH,
+        )
+    )
+
+    assert recreated_user.username == "first.user"
+    assert recreated_user.email == "first@example.com"
+
+
+async def test_get_by_id_returns_none_for_soft_deleted_user(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+    await repository.soft_delete(UserId(user.id))
+
+    auth_user = await repository.get_by_id(UserId(user.id))
+
+    assert auth_user is None
+
+
+async def test_touch_last_login_updates_last_login_at(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+
+    updated = await repository.touch_last_login(UserId(user.id))
+
+    assert updated is True
+    reloaded_user = await repository.get_by_id(UserId(user.id))
+    assert reloaded_user is not None
+    assert reloaded_user.last_login_at is not None

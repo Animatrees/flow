@@ -109,3 +109,18 @@ class InMemoryProjectRepository(AbstractProjectRepository):
 
         project_members.add(user_id)
         return ProjectMemberRead(project_id=ProjectId(project_id), user_id=UserId(user_id))
+
+    async def delete_all_owned_by_user(self, user_id: UserId) -> None:
+        owned_project_ids = [
+            project_id
+            for project_id, project in self.projects.items()
+            if project.owner_id == user_id
+        ]
+        for project_id in owned_project_ids:
+            self.projects.pop(project_id, None)
+            self.members.pop(project_id, None)
+
+    async def remove_memberships_for_user(self, user_id: UserId) -> None:
+        for members in self.members.values():
+            if user_id in members:
+                members.remove(user_id)

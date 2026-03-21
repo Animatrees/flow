@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import date
 
 from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.repositories.user_repository import AbstractUserRepository
 from app.domain.schemas import (
     ProjectCreate,
     ProjectCreateWithOwner,
@@ -18,12 +19,18 @@ from app.services.exceptions import (
     ProjectAccessDeniedError,
     ProjectMemberAlreadyExistsError,
     ProjectNotFoundError,
+    UserNotFoundError,
 )
 
 
 class ProjectService:
-    def __init__(self, repo: AbstractProjectRepository) -> None:
+    def __init__(
+        self,
+        repo: AbstractProjectRepository,
+        user_repo: AbstractUserRepository,
+    ) -> None:
         self.repo = repo
+        self.user_repo = user_repo
 
     async def create(self, owner: UserRead, data: ProjectCreate) -> ProjectRead:
         self._validate_date_range(
@@ -84,6 +91,9 @@ class ProjectService:
 
         if user_id == project.owner_id:
             raise ProjectMemberAlreadyExistsError
+        if await self.user_repo.get_by_id(user_id) is None:
+            msg = f"User with id '{user_id}' was not found."
+            raise UserNotFoundError(msg)
 
         try:
             return await self.repo.add_member(project_id, user_id)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import ClassVar
 
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -14,6 +15,8 @@ convention = {
 
 class Base(DeclarativeBase):
     __abstract__ = True
+
+    __mapper_args__: ClassVar[dict[str, bool]] = {"eager_defaults": True}
 
     metadata = MetaData(naming_convention=convention)
 

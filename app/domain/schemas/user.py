@@ -58,6 +58,8 @@ class UserRead(BaseModel):
     username: str
     email: str
     created_at: datetime
+    updated_at: datetime
+    last_login_at: datetime | None
 
 
 class UserAuthRead(BaseModel):
@@ -67,4 +69,8 @@ class UserAuthRead(BaseModel):
     username: str
     email: str
     password_hash: str
+    is_active: bool
     created_at: datetime
+    updated_at: datetime
+    last_login_at: datetime | None
+    deleted_at: datetime | None

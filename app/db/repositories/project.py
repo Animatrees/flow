@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import delete, exists, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Project, ProjectMember, User
+from app.db.models import Project, ProjectMember
 from app.db.repositories.exceptions import (
     ConflictError,
     ProjectNotFoundError,
@@ -95,7 +95,6 @@ class ProjectRepository(AbstractProjectRepository):
 
     async def add_member(self, project_id: ProjectId, user_id: UserId) -> ProjectMemberRead:
         await self._ensure_project_exists(project_id)
-        await self._ensure_user_exists(user_id)
 
         member = ProjectMember(project_id=project_id, user_id=user_id)
         self.session.add(member)
@@ -107,15 +106,27 @@ class ProjectRepository(AbstractProjectRepository):
 
         return ProjectMemberRead.model_validate(member)
 
+    async def delete_all_owned_by_user(self, user_id: UserId) -> None:
+        project_ids = list(
+            await self.session.scalars(select(Project.id).where(Project.owner_id == user_id))
+        )
+        if not project_ids:
+            return
+
+        await self.session.execute(
+            delete(ProjectMember).where(ProjectMember.project_id.in_(project_ids))
+        )
+        await self.session.execute(delete(Project).where(Project.id.in_(project_ids)))
+        await self.session.flush()
+
+    async def remove_memberships_for_user(self, user_id: UserId) -> None:
+        await self.session.execute(delete(ProjectMember).where(ProjectMember.user_id == user_id))
+        await self.session.flush()
+
     async def _ensure_project_exists(self, project_id: ProjectId) -> None:
         if await self.session.get(Project, project_id) is None:
             msg = f"Project with id '{project_id}' was not found."
             raise ProjectNotFoundError(msg)
-
-    async def _ensure_user_exists(self, user_id: UserId) -> None:
-        if await self.session.get(User, user_id) is None:
-            msg = f"User with id '{user_id}' was not found."
-            raise UserNotFoundError(msg)
 
     @staticmethod
     def _map_project_integrity_error(err: IntegrityError) -> RepositoryError:

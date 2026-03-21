@@ -7,18 +7,34 @@ from app.services import (
     AuthService,
     JWTService,
     ProjectService,
+    UserLifecycleService,
     UserService,
 )
 
 
 class ServiceProvider(Provider):
     @provide(scope=Scope.REQUEST)
-    def provide_project_service(self, repo: AbstractProjectRepository) -> ProjectService:
-        return ProjectService(repo)
+    def provide_project_service(
+        self,
+        repo: AbstractProjectRepository,
+        user_repo: AbstractUserRepository,
+    ) -> ProjectService:
+        return ProjectService(repo, user_repo)
 
     @provide(scope=Scope.REQUEST)
-    def provide_user_service(self, repo: AbstractUserRepository) -> UserService:
+    def provide_user_service(
+        self,
+        repo: AbstractUserRepository,
+    ) -> UserService:
         return UserService(repo)
+
+    @provide(scope=Scope.REQUEST)
+    def provide_user_lifecycle_service(
+        self,
+        user_repo: AbstractUserRepository,
+        project_repo: AbstractProjectRepository,
+    ) -> UserLifecycleService:
+        return UserLifecycleService(user_repo, project_repo)
 
     @provide(scope=Scope.REQUEST)
     def provide_auth_service(

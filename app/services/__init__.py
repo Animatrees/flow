@@ -32,6 +32,7 @@ from app.services.exceptions import (
 from app.services.jwt_service import JWTService
 from app.services.project_service import ProjectService
 from app.services.security import hash_password, verify_password
+from app.services.user_lifecycle_service import UserLifecycleService
 from app.services.user_service import UserService
 
 __all__ = [
@@ -63,6 +64,7 @@ __all__ = [
     "ServiceError",
     "StoredObjectMetadata",
     "UnsupportedDocumentTypeError",
+    "UserLifecycleService",
     "UserNotFoundError",
     "UserService",
     "UsernameAlreadyExistsError",

@@ -39,6 +39,7 @@ async def test_register_returns_created_user(client: httpx.AsyncClient) -> None:
     assert UUID(response.json()["id"])
     assert response.json()["username"] == "valid.user"
     assert response.json()["email"] == "user@example.com"
+    assert response.json()["last_login_at"] is None
     assert "password_hash" not in response.json()
 
 

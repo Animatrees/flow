@@ -25,6 +25,8 @@ class AuthService:
         if user is None or not verify_password(data.password, user.password_hash):
             raise InvalidCredentialsError
 
+        await self.user_service.touch_last_login(user.id)
+
         token_data = self.jwt_service.create_access_token(
             {
                 "sub": str(user.id),

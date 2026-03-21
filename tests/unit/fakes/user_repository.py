@@ -11,20 +11,29 @@ from app.services import (
 )
 
 
-def build_user_auth_read(
+def build_user_auth_read(  # noqa: PLR0913
     *,
     user_id: UUID,
     username: str,
     email: str,
     password_hash: str,
     created_at: datetime | None = None,
+    updated_at: datetime | None = None,
+    last_login_at: datetime | None = None,
+    is_active: bool = True,
+    deleted_at: datetime | None = None,
 ) -> UserAuthRead:
+    timestamp = created_at or datetime.now(UTC)
     return UserAuthRead(
         id=UserId(user_id),
         username=username,
         email=email,
         password_hash=password_hash,
-        created_at=created_at or datetime.now(UTC),
+        is_active=is_active,
+        created_at=timestamp,
+        updated_at=updated_at or timestamp,
+        last_login_at=last_login_at,
+        deleted_at=deleted_at,
     )
 
 
@@ -34,6 +43,8 @@ def to_user_read(user: UserAuthRead) -> UserRead:
         username=user.username,
         email=user.email,
         created_at=user.created_at,
+        updated_at=user.updated_at,
+        last_login_at=user.last_login_at,
     )
 
 
@@ -50,10 +61,16 @@ class InMemoryUserRepository(AbstractUserRepository):
 
     async def get_by_id(self, id_: UUID) -> UserRead | None:
         user = self.users.get(id_)
-        return to_user_read(user) if user is not None else None
+        if user is None or user.deleted_at is not None or not user.is_active:
+            return None
+        return to_user_read(user)
 
     async def get_all(self) -> Sequence[UserRead]:
-        return [to_user_read(user) for user in self.users.values()]
+        return [
+            to_user_read(user)
+            for user in self.users.values()
+            if user.deleted_at is None and user.is_active
+        ]
 
     async def create(self, data: UserCreate) -> UserRead:
         if self.create_error is not None:
@@ -75,7 +92,7 @@ class InMemoryUserRepository(AbstractUserRepository):
             raise self.update_error
 
         user = self.users.get(id_)
-        if user is None:
+        if user is None or user.deleted_at is not None or not user.is_active:
             return None
         if data.username is not None:
             self._ensure_unique_username(data.username, exclude_user_id=id_)
@@ -86,27 +103,50 @@ class InMemoryUserRepository(AbstractUserRepository):
         self.users[id_] = updated_user
         return to_user_read(updated_user)
 
-    async def delete(self, id_: UUID) -> bool:
-        deleted_user = self.users.pop(id_, None)
-        return deleted_user is not None
+    async def soft_delete(self, user_id: UserId) -> bool:
+        user = self.users.get(user_id)
+        if user is None or user.deleted_at is not None:
+            return False
+
+        deleted_user = user.model_copy(
+            update={
+                "username": f"deleted-{user.id}",
+                "email": f"deleted-{user.id}@deleted.local",
+                "password_hash": f"deleted:{user.id}",
+                "is_active": False,
+                "last_login_at": None,
+                "deleted_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self.users[user_id] = deleted_user
+        return True
 
     async def get_by_username(self, username: str) -> UserRead | None:
         for user in self.users.values():
-            if user.username == username:
-                return to_user_read(user)
-        return None
-
-    async def get_by_email(self, email: str) -> UserRead | None:
-        for user in self.users.values():
-            if user.email == email:
+            if user.username == username and user.deleted_at is None and user.is_active:
                 return to_user_read(user)
         return None
 
     async def get_auth_by_username(self, username: str) -> UserAuthRead | None:
         for user in self.users.values():
-            if user.username == username:
+            if user.username == username and user.deleted_at is None and user.is_active:
                 return user
         return None
+
+    async def touch_last_login(self, user_id: UserId) -> bool:
+        user = self.users.get(user_id)
+        if user is None or user.deleted_at is not None or not user.is_active:
+            return False
+
+        updated_user = user.model_copy(
+            update={
+                "last_login_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self.users[user_id] = updated_user
+        return True
 
     def _ensure_unique_username(
         self,
@@ -114,7 +154,7 @@ class InMemoryUserRepository(AbstractUserRepository):
         exclude_user_id: UUID | None = None,
     ) -> None:
         for user_id, user in self.users.items():
-            if user.username == username and user_id != exclude_user_id:
+            if user.username == username and user_id != exclude_user_id and user.deleted_at is None:
                 raise UsernameAlreadyExistsError
 
     def _ensure_unique_email(
@@ -123,5 +163,5 @@ class InMemoryUserRepository(AbstractUserRepository):
         exclude_user_id: UUID | None = None,
     ) -> None:
         for user_id, user in self.users.items():
-            if user.email == email and user_id != exclude_user_id:
+            if user.email == email and user_id != exclude_user_id and user.deleted_at is None:
                 raise EmailAlreadyExistsError

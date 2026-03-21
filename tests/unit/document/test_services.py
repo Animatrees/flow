@@ -55,6 +55,8 @@ def build_user(user_id: UUID, username: str, email: str) -> UserRead:
         username=username,
         email=email,
         created_at=CREATED_AT,
+        updated_at=CREATED_AT,
+        last_login_at=None,
     )
 
 

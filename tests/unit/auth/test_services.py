@@ -108,11 +108,14 @@ async def test_auth_service_authenticate_returns_token(
     )
 
     payload = jwt_service.decode_access_token(token_response.access_token)
+    auth_user = await user_repository.get_auth_by_username("valid.user")
 
     assert token_response.token_type == "Bearer"
     assert token_response.exp > token_response.iat
     assert payload["sub"] == str(created_user.id)
     assert payload["username"] == created_user.username
+    assert auth_user is not None
+    assert auth_user.last_login_at is not None
 
 
 @pytest.mark.anyio
@@ -139,6 +142,26 @@ async def test_auth_service_authenticate_rejects_missing_user(
     with pytest.raises(InvalidCredentialsError, match="Invalid username or password"):
         await auth_service.authenticate(
             LoginRequest(username="missing.user", password="StrongPass1!")
+        )
+
+
+@pytest.mark.anyio
+async def test_auth_service_authenticate_rejects_soft_deleted_user(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    created_user = await user_repository.create(
+        UserCreate(
+            username="valid.user",
+            email="user@example.com",
+            password_hash=hash_password("StrongPass1!"),
+        )
+    )
+    await user_repository.soft_delete(created_user.id)
+
+    with pytest.raises(InvalidCredentialsError, match="Invalid username or password"):
+        await auth_service.authenticate(
+            LoginRequest(username="valid.user", password="StrongPass1!")
         )
 
 

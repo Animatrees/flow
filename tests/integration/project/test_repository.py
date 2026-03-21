@@ -10,7 +10,6 @@ from app.db.repositories import (
     ConflictError,
     ProjectNotFoundError,
     ProjectRepository,
-    UserNotFoundError,
 )
 from app.domain.schemas import ProjectCreateWithOwner, ProjectStatus, ProjectUpdate, UserId
 from app.domain.schemas.type_ids import ProjectId
@@ -23,7 +22,6 @@ OUTSIDER_ID = UserId(UUID("33333333-3333-3333-3333-333333333333"))
 FIRST_PROJECT_ID = ProjectId(UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
 SECOND_PROJECT_ID = ProjectId(UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"))
 MISSING_PROJECT_ID = ProjectId(UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"))
-MISSING_USER_ID = UserId(UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"))
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 LATER_CREATED_AT = datetime(2026, 2, 1, tzinfo=UTC)
 
@@ -40,7 +38,11 @@ async def seed_user(
         username=username,
         email=email,
         password_hash="hashed-password",
+        is_active=True,
         created_at=CREATED_AT,
+        updated_at=CREATED_AT,
+        last_login_at=None,
+        deleted_at=None,
     )
     session.add(user)
     await session.flush()
@@ -241,6 +243,94 @@ async def test_delete_returns_false_for_missing_project(repository: ProjectRepos
     assert success is False
 
 
+async def test_delete_all_owned_by_user_removes_owned_projects(
+    repository: ProjectRepository,
+    db_session: AsyncSession,
+) -> None:
+    await seed_user(
+        db_session,
+        user_id=OWNER_ID,
+        username="owner",
+        email="owner@example.com",
+    )
+    await seed_project(
+        db_session,
+        project_id=FIRST_PROJECT_ID,
+        data=ProjectCreateWithOwner(
+            name="First",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        ),
+    )
+    await seed_project(
+        db_session,
+        project_id=SECOND_PROJECT_ID,
+        data=ProjectCreateWithOwner(
+            name="Second",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        ),
+    )
+
+    await repository.delete_all_owned_by_user(OWNER_ID)
+    assert await repository.get_by_id(FIRST_PROJECT_ID) is None
+    assert await repository.get_by_id(SECOND_PROJECT_ID) is None
+
+
+async def test_remove_memberships_for_user_removes_all_participations(
+    repository: ProjectRepository,
+    db_session: AsyncSession,
+) -> None:
+    await seed_user(
+        db_session,
+        user_id=OWNER_ID,
+        username="owner",
+        email="owner@example.com",
+    )
+    await seed_user(
+        db_session,
+        user_id=PARTICIPANT_ID,
+        username="participant",
+        email="participant@example.com",
+    )
+    await seed_project(
+        db_session,
+        project_id=FIRST_PROJECT_ID,
+        data=ProjectCreateWithOwner(
+            name="First",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        ),
+    )
+    await seed_project(
+        db_session,
+        project_id=SECOND_PROJECT_ID,
+        data=ProjectCreateWithOwner(
+            name="Second",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        ),
+    )
+    await seed_member(db_session, project_id=FIRST_PROJECT_ID, user_id=PARTICIPANT_ID)
+    await seed_member(db_session, project_id=SECOND_PROJECT_ID, user_id=PARTICIPANT_ID)
+
+    await repository.remove_memberships_for_user(PARTICIPANT_ID)
+    assert await repository.is_member(FIRST_PROJECT_ID, PARTICIPANT_ID) is False
+    assert await repository.is_member(SECOND_PROJECT_ID, PARTICIPANT_ID) is False
+
+
 async def test_get_all_for_user_returns_owned_and_member_projects(
     repository: ProjectRepository,
     db_session: AsyncSession,
@@ -413,33 +503,6 @@ async def test_add_member_raises_for_duplicate_membership(
         match=re.escape("User is already a participant of this project."),
     ):
         await repository.add_member(FIRST_PROJECT_ID, PARTICIPANT_ID)
-
-
-async def test_add_member_raises_for_missing_user(
-    repository: ProjectRepository,
-    db_session: AsyncSession,
-) -> None:
-    await seed_user(
-        db_session,
-        user_id=OWNER_ID,
-        username="owner",
-        email="owner@example.com",
-    )
-    await seed_project(
-        db_session,
-        project_id=FIRST_PROJECT_ID,
-        data=ProjectCreateWithOwner(
-            name="Flow",
-            description="",
-            owner_id=OWNER_ID,
-            start_date=date(2026, 1, 1),
-            end_date=date(2026, 12, 31),
-            status=ProjectStatus.OPEN,
-        ),
-    )
-
-    with pytest.raises(UserNotFoundError, match=f"User with id '{MISSING_USER_ID}' was not found."):
-        await repository.add_member(FIRST_PROJECT_ID, MISSING_USER_ID)
 
 
 async def test_add_member_raises_for_missing_project(

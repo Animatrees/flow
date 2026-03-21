@@ -36,13 +36,6 @@ class UserService:
             raise UserNotFoundError(msg)
         return user
 
-    async def get_by_email(self, email: str) -> UserRead:
-        user = await self.repo.get_by_email(email)
-        if user is None:
-            msg = f"User with email '{email}' was not found."
-            raise UserNotFoundError(msg)
-        return user
-
     async def get_auth_user_by_username(self, username: str) -> UserAuthRead | None:
         return await self.repo.get_auth_by_username(username)
 
@@ -62,10 +55,8 @@ class UserService:
             raise UserNotFoundError(msg)
         return user
 
-    async def delete(self, current_user: UserRead, user_id: UserId) -> None:
-        if current_user.id != user_id:
-            raise PermissionDeniedError
-        success = await self.repo.delete(user_id)
+    async def touch_last_login(self, user_id: UserId) -> None:
+        success = await self.repo.touch_last_login(user_id)
         if not success:
             msg = f"User with id '{user_id}' was not found."
             raise UserNotFoundError(msg)

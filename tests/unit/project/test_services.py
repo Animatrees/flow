@@ -23,8 +23,10 @@ from app.services import (
     ProjectMemberAlreadyExistsError,
     ProjectNotFoundError,
     ProjectService,
+    UserNotFoundError,
 )
 from tests.unit.fakes.project_repository import InMemoryProjectRepository, build_project_read
+from tests.unit.fakes.user_repository import InMemoryUserRepository, build_user_auth_read
 
 OWNER_ID = UserId(UUID("11111111-1111-1111-1111-111111111111"))
 PARTICIPANT_ID = UserId(UUID("22222222-2222-2222-2222-222222222222"))
@@ -42,6 +44,8 @@ def build_user(user_id: UUID, username: str, email: str) -> UserRead:
         username=username,
         email=email,
         created_at=CREATED_AT,
+        updated_at=CREATED_AT,
+        last_login_at=None,
     )
 
 
@@ -113,7 +117,43 @@ def project_repository(
 
 @pytest.fixture
 def project_service(project_repository: InMemoryProjectRepository) -> ProjectService:
-    return ProjectService(project_repository)
+    user_repository = InMemoryUserRepository(
+        users=[
+            build_user_auth_read(
+                user_id=OWNER_ID,
+                username="owner",
+                email="owner@example.com",
+                password_hash="hash",
+                created_at=CREATED_AT,
+                updated_at=CREATED_AT,
+            ),
+            build_user_auth_read(
+                user_id=PARTICIPANT_ID,
+                username="participant",
+                email="participant@example.com",
+                password_hash="hash",
+                created_at=CREATED_AT,
+                updated_at=CREATED_AT,
+            ),
+            build_user_auth_read(
+                user_id=OUTSIDER_ID,
+                username="outsider",
+                email="outsider@example.com",
+                password_hash="hash",
+                created_at=CREATED_AT,
+                updated_at=CREATED_AT,
+            ),
+            build_user_auth_read(
+                user_id=SECOND_OWNER_ID,
+                username="second.owner",
+                email="second.owner@example.com",
+                password_hash="hash",
+                created_at=CREATED_AT,
+                updated_at=CREATED_AT,
+            ),
+        ]
+    )
+    return ProjectService(project_repository, user_repository)
 
 
 @pytest.mark.anyio
@@ -415,3 +455,18 @@ async def test_project_service_add_member_maps_repository_conflict(
         match=re.escape("User is already a participant of this project."),
     ):
         await project_service.add_member(owner, existing_project.id, outsider.id)
+
+
+@pytest.mark.anyio
+async def test_project_service_add_member_raises_for_missing_user(
+    project_service: ProjectService,
+    owner: UserRead,
+    existing_project: ProjectRead,
+) -> None:
+    missing_user_id = UserId(UUID("55555555-5555-5555-5555-555555555555"))
+
+    with pytest.raises(
+        UserNotFoundError,
+        match=re.escape(f"User with id '{missing_user_id}' was not found."),
+    ):
+        await project_service.add_member(owner, existing_project.id, missing_user_id)

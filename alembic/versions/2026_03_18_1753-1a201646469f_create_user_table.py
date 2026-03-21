@@ -39,7 +39,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.CheckConstraint("char_length(username) >= 3", name=op.f("ck_users_username_min_length")),
+        sa.CheckConstraint("length(username) >= 3", name=op.f("ck_users_username_min_length")),
         sa.CheckConstraint("email = lower(email)", name=op.f("ck_users_email_is_lower")),
         sa.CheckConstraint("username = lower(username)", name=op.f("ck_users_username_is_lower")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),

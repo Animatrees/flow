@@ -25,3 +25,11 @@ class AbstractProjectRepository(
     @abstractmethod
     async def add_member(self, project_id: ProjectId, user_id: UserId) -> ProjectMemberRead:
         """Add a participant to the given project."""
+
+    @abstractmethod
+    async def delete_all_owned_by_user(self, user_id: UserId) -> None:
+        """Delete all projects owned by the given user."""
+
+    @abstractmethod
+    async def remove_memberships_for_user(self, user_id: UserId) -> None:
+        """Remove the user from all project memberships."""

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,11 +20,18 @@ class UserRepository(AbstractUserRepository):
         self.session = session
 
     async def get_by_id(self, id_: UserId) -> UserRead | None:
-        user = await self.session.get(User, id_)
+        user = await self._get_active_user(id_)
         return UserRead.model_validate(user) if user is not None else None
 
     async def get_all(self) -> Sequence[UserRead]:
-        statement = select(User).order_by(User.username, User.id)
+        statement = (
+            select(User)
+            .where(
+                User.deleted_at.is_(None),
+                User.is_active.is_(True),
+            )
+            .order_by(User.username, User.id)
+        )
         users = await self.session.scalars(statement)
         return [UserRead.model_validate(user) for user in users]
 
@@ -39,7 +47,7 @@ class UserRepository(AbstractUserRepository):
         return UserRead.model_validate(user)
 
     async def update(self, id_: UserId, data: UserUpdate) -> UserRead | None:
-        user = await self.session.get(User, id_)
+        user = await self._get_active_user(id_)
         if user is None:
             return None
 
@@ -56,32 +64,60 @@ class UserRepository(AbstractUserRepository):
 
         return UserRead.model_validate(user)
 
-    async def delete(self, id_: UserId) -> bool:
-        user = await self.session.get(User, id_)
+    async def soft_delete(self, user_id: UserId) -> bool:
+        statement = select(User).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+        )
+        user = (await self.session.scalars(statement)).one_or_none()
         if user is None:
             return False
 
-        await self.session.delete(user)
+        user.username = f"deleted-{user.id}"
+        user.email = f"deleted-{user.id}@deleted.local"
+        user.password_hash = f"deleted:{user.id}"
+        user.is_active = False
+        user.last_login_at = None
+        user.deleted_at = datetime.now(UTC)
         await self.session.flush()
         return True
 
     async def get_by_username(self, username: str) -> UserRead | None:
-        statement = select(User).where(User.username == username)
-        result = await self.session.scalars(statement)
-        user = result.one_or_none()
-        return UserRead.model_validate(user) if user is not None else None
-
-    async def get_by_email(self, email: str) -> UserRead | None:
-        statement = select(User).where(User.email == email)
+        statement = select(User).where(
+            User.username == username,
+            User.deleted_at.is_(None),
+            User.is_active.is_(True),
+        )
         result = await self.session.scalars(statement)
         user = result.one_or_none()
         return UserRead.model_validate(user) if user is not None else None
 
     async def get_auth_by_username(self, username: str) -> UserAuthRead | None:
-        statement = select(User).where(User.username == username)
+        statement = select(User).where(
+            User.username == username,
+            User.deleted_at.is_(None),
+            User.is_active.is_(True),
+        )
         result = await self.session.scalars(statement)
         user = result.one_or_none()
         return UserAuthRead.model_validate(user) if user is not None else None
+
+    async def touch_last_login(self, user_id: UserId) -> bool:
+        user = await self._get_active_user(user_id)
+        if user is None:
+            return False
+
+        user.last_login_at = datetime.now(UTC)
+        await self.session.flush()
+        return True
+
+    async def _get_active_user(self, user_id: UserId) -> User | None:
+        statement = select(User).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+            User.is_active.is_(True),
+        )
+        return (await self.session.scalars(statement)).one_or_none()
 
     @staticmethod
     def _map_integrity_error(
