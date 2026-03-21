@@ -84,15 +84,15 @@ async def delete_project(
 
 
 @router.post(
-    "/{project_id}/invite",
+    "/{project_id}/members",
     status_code=status.HTTP_201_CREATED,
 )
-async def invite_user_to_project(
+async def add_project_member(
     project_id: ProjectId,
     user: Annotated[Username, Query()],
     project_service: FromDishka[ProjectService],
     user_service: FromDishka[UserService],
     current_user: Annotated[UserRead, Depends(get_current_user)],
 ) -> ProjectMemberRead:
-    invited_user = await user_service.get_by_username(user)
-    return await project_service.add_member(current_user, project_id, invited_user.id)
+    member_user = await user_service.get_by_username(user)
+    return await project_service.add_member(current_user, project_id, member_user.id)
