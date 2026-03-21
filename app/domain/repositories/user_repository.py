@@ -1,8 +1,8 @@
 from abc import abstractmethod
 
-from app.schemas.type_ids import UserId
-from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
-from app.services.repositories.base_repository import AbstractRepository
+from app.domain.repositories.base_repository import AbstractRepository
+from app.domain.schemas.type_ids import UserId
+from app.domain.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 
 
 class AbstractUserRepository(AbstractRepository[UserId, UserCreate, UserRead, UserUpdate]):

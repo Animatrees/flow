@@ -4,15 +4,17 @@ from uuid import UUID
 
 import pytest
 
-from app.schemas import (
+from app.domain.schemas import (
     ProjectCreate,
+    ProjectCreateWithOwner,
+    ProjectId,
     ProjectMemberRead,
     ProjectRead,
     ProjectStatus,
     ProjectUpdate,
+    UserId,
     UserRead,
 )
-from app.schemas.project import ProjectCreateWithOwner, ProjectId, UserId
 from app.services import (
     ConflictError,
     InvalidProjectDatesError,

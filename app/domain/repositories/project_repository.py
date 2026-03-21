@@ -1,14 +1,14 @@
 from abc import abstractmethod
 from collections.abc import Sequence
 
-from app.schemas.project import (
+from app.domain.repositories.base_repository import AbstractRepository
+from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
     ProjectRead,
     ProjectUpdate,
 )
-from app.schemas.type_ids import ProjectId, UserId
-from app.services.repositories.base_repository import AbstractRepository
+from app.domain.schemas.type_ids import ProjectId, UserId
 
 
 class AbstractProjectRepository(

@@ -2,8 +2,8 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
-from app.schemas.type_ids import DocumentId, ProjectId
+from app.domain.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
+from app.domain.schemas.type_ids import DocumentId, ProjectId
 from app.services import AbstractDocumentRepository
 
 

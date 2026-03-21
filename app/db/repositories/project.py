@@ -11,14 +11,14 @@ from app.db.repositories.exceptions import (
     RepositoryError,
     UserNotFoundError,
 )
-from app.schemas.project import (
+from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
     ProjectRead,
     ProjectUpdate,
 )
-from app.schemas.type_ids import ProjectId, UserId
-from app.services.repositories.project_repository import AbstractProjectRepository
+from app.domain.schemas.type_ids import ProjectId, UserId
 
 
 class ProjectRepository(AbstractProjectRepository):

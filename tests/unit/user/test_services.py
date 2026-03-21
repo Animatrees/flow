@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from app.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
+from app.domain.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
 from app.services import (
     EmailAlreadyExistsError,
     PermissionDeniedError,

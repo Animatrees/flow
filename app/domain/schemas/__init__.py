@@ -1,5 +1,5 @@
-from app.schemas.auth import LoginRequest, RegisterRequest
-from app.schemas.document import (
+from app.domain.schemas.auth import LoginRequest, RegisterRequest
+from app.domain.schemas.document import (
     DocumentConfirmUpload,
     DocumentCreate,
     DocumentCreateStored,
@@ -7,7 +7,7 @@ from app.schemas.document import (
     DocumentUpdate,
     UploadIntentResponse,
 )
-from app.schemas.project import (
+from app.domain.schemas.project import (
     ProjectCreate,
     ProjectCreateWithOwner,
     ProjectMemberRead,
@@ -15,8 +15,8 @@ from app.schemas.project import (
     ProjectStatus,
     ProjectUpdate,
 )
-from app.schemas.type_ids import DocumentId, ProjectId, UserId
-from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
+from app.domain.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 
 __all__ = [
     "DocumentConfirmUpload",

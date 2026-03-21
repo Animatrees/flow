@@ -1,6 +1,6 @@
 import pytest
 
-from app.schemas import LoginRequest, RegisterRequest, UserCreate
+from app.domain.schemas import LoginRequest, RegisterRequest, UserCreate
 from app.services import (
     AuthService,
     InvalidCredentialsError,

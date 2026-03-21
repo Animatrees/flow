@@ -10,8 +10,8 @@ from app.db.repositories.exceptions import (
     RepositoryError,
     UsernameAlreadyExistsError,
 )
-from app.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
-from app.services.repositories.user_repository import AbstractUserRepository, UserId
+from app.domain.repositories import AbstractUserRepository
+from app.domain.schemas import UserAuthRead, UserCreate, UserId, UserRead, UserUpdate
 
 
 class UserRepository(AbstractUserRepository):

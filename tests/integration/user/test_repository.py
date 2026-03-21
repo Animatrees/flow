@@ -10,7 +10,7 @@ from app.db.repositories import (
     UsernameAlreadyExistsError,
     UserRepository,
 )
-from app.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
+from app.domain.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
 
 pytestmark = pytest.mark.anyio
 

@@ -1,3 +1,10 @@
+from app.domain.repositories import (
+    AbstractDocumentRepository,
+    AbstractRepository,
+    AbstractUserRepository,
+)
+from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.storage import AbstractFileStorage, StoredObjectMetadata
 from app.services.auth_service import AuthService
 from app.services.document_service import DocumentService
 from app.services.exceptions import (
@@ -24,12 +31,7 @@ from app.services.exceptions import (
 )
 from app.services.jwt_service import JWTService
 from app.services.project_service import ProjectService
-from app.services.repositories.base_repository import AbstractRepository
-from app.services.repositories.document_repository import AbstractDocumentRepository
-from app.services.repositories.project_repository import AbstractProjectRepository
-from app.services.repositories.user_repository import AbstractUserRepository
 from app.services.security import hash_password, verify_password
-from app.services.storage.file_storage import AbstractFileStorage, StoredObjectMetadata
 from app.services.user_service import UserService
 
 __all__ = [

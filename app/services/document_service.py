@@ -3,7 +3,10 @@ from collections.abc import Sequence
 
 from uuid_extensions import uuid7
 
-from app.schemas.document import (
+from app.domain.repositories import AbstractDocumentRepository
+from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.schemas import ProjectRead
+from app.domain.schemas.document import (
     DocumentConfirmUpload,
     DocumentCreate,
     DocumentCreateStored,
@@ -11,9 +14,9 @@ from app.schemas.document import (
     DocumentUpdate,
     UploadIntentResponse,
 )
-from app.schemas.project import ProjectRead
-from app.schemas.type_ids import DocumentId, ProjectId
-from app.schemas.user import UserRead
+from app.domain.schemas.type_ids import DocumentId, ProjectId
+from app.domain.schemas.user import UserRead
+from app.domain.storage import AbstractFileStorage
 from app.services.exceptions import (
     DocumentNotFoundError,
     DocumentStorageError,
@@ -23,9 +26,6 @@ from app.services.exceptions import (
     ProjectNotFoundError,
     UnsupportedDocumentTypeError,
 )
-from app.services.repositories.document_repository import AbstractDocumentRepository
-from app.services.repositories.project_repository import AbstractProjectRepository
-from app.services.storage.file_storage import AbstractFileStorage
 
 logger = logging.getLogger(__name__)
 

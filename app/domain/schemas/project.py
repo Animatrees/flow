@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from app.schemas.type_ids import ProjectId, UserId
+from app.domain.schemas.type_ids import ProjectId, UserId
 
 type TrimmedString = Annotated[str, StringConstraints(strip_whitespace=True)]
 type NonEmptyString = Annotated[TrimmedString, StringConstraints(min_length=1)]

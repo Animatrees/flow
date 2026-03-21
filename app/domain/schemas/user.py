@@ -10,7 +10,7 @@ from pydantic import (
     StringConstraints,
 )
 
-from app.schemas.type_ids import UserId
+from app.domain.schemas.type_ids import UserId
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_.\-]+$")
 

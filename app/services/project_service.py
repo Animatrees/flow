@@ -1,15 +1,16 @@
 from collections.abc import Sequence
 from datetime import date
 
-from app.schemas.project import (
+from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.schemas import (
     ProjectCreate,
     ProjectCreateWithOwner,
     ProjectMemberRead,
     ProjectRead,
     ProjectUpdate,
 )
-from app.schemas.type_ids import ProjectId, UserId
-from app.schemas.user import UserRead
+from app.domain.schemas.type_ids import ProjectId, UserId
+from app.domain.schemas.user import UserRead
 from app.services.exceptions import (
     ConflictError,
     InvalidProjectDatesError,
@@ -18,7 +19,6 @@ from app.services.exceptions import (
     ProjectMemberAlreadyExistsError,
     ProjectNotFoundError,
 )
-from app.services.repositories.project_repository import AbstractProjectRepository
 
 
 class ProjectService:

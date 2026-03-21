@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, status
 
 from app.api.v1.get_current_user import get_current_user
-from app.schemas import UserId, UserRead, UserUpdate
-from app.schemas.user import LowerEmail, Username
+from app.domain.schemas import UserId, UserRead, UserUpdate
+from app.domain.schemas.user import LowerEmail, Username
 from app.services import UserService
 
 router = APIRouter(

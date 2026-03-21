@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import UserCreate, UserUpdate
+from app.domain.schemas import UserCreate, UserUpdate
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"

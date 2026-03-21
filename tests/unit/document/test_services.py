@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from app.schemas import (
+from app.domain.schemas import (
     DocumentConfirmUpload,
     DocumentCreate,
     DocumentCreateStored,
@@ -16,7 +16,7 @@ from app.schemas import (
     ProjectStatus,
     UserRead,
 )
-from app.schemas.type_ids import DocumentId, ProjectId, UserId
+from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
 from app.services import (
     DocumentNotFoundError,
     DocumentService,

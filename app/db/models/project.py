@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models import Base
 from app.db.models.mixins import UUIDPkMixin
-from app.schemas.project import ProjectStatus
+from app.domain.schemas import ProjectStatus
 
 PROJECT_STATUS_VALUES = tuple(status.value for status in ProjectStatus)
 

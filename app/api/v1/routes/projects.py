@@ -5,9 +5,15 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.v1.get_current_user import get_current_user
-from app.schemas import ProjectCreate, ProjectId, ProjectRead, ProjectUpdate, UserRead
-from app.schemas.project import ProjectMemberRead
-from app.schemas.user import Username
+from app.domain.schemas import (
+    ProjectCreate,
+    ProjectId,
+    ProjectMemberRead,
+    ProjectRead,
+    ProjectUpdate,
+    UserRead,
+)
+from app.domain.schemas.user import Username
 from app.services import ProjectService, UserService
 
 router = APIRouter(

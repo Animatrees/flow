@@ -1,5 +1,5 @@
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.schemas.user import UserCreate, UserRead
+from app.domain.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.domain.schemas.user import UserCreate, UserRead
 from app.services.exceptions import InvalidCredentialsError
 from app.services.jwt_service import JWTService
 from app.services.security import hash_password, verify_password

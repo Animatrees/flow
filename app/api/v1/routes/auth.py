@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.schemas import LoginRequest, RegisterRequest, UserRead
-from app.schemas.auth import TokenResponse
+from app.domain.schemas import LoginRequest, RegisterRequest, UserRead
+from app.domain.schemas.auth import TokenResponse
 from app.services import AuthService
 
 router = APIRouter(route_class=DishkaRoute)

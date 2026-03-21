@@ -12,9 +12,8 @@ from app.db.repositories import (
     ProjectRepository,
     UserNotFoundError,
 )
-from app.schemas import ProjectStatus, ProjectUpdate, UserId
-from app.schemas.project import ProjectCreateWithOwner
-from app.schemas.type_ids import ProjectId
+from app.domain.schemas import ProjectCreateWithOwner, ProjectStatus, ProjectUpdate, UserId
+from app.domain.schemas.type_ids import ProjectId
 
 pytestmark = pytest.mark.anyio
 

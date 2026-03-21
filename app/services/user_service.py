@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 
-from app.schemas.type_ids import UserId
-from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.repositories import AbstractUserRepository
+from app.domain.schemas.type_ids import UserId
+from app.domain.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 from app.services.exceptions import (
     ConflictError,
     EmailAlreadyExistsError,
@@ -9,7 +10,6 @@ from app.services.exceptions import (
     UsernameAlreadyExistsError,
     UserNotFoundError,
 )
-from app.services.repositories.user_repository import AbstractUserRepository
 
 
 class UserService:

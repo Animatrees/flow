@@ -11,7 +11,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
-from app.schemas.project import ProjectStatus
+from app.domain.schemas import ProjectStatus
 
 PROJECT_STATUS_VALUES = tuple(status.value for status in ProjectStatus)
 

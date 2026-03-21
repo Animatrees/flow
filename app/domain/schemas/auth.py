@@ -9,7 +9,7 @@ from pydantic import (
 )
 from zxcvbn import zxcvbn
 
-from app.schemas.user import LowerEmail, Username
+from app.domain.schemas.user import LowerEmail, Username
 
 
 class RegisterRequest(BaseModel):

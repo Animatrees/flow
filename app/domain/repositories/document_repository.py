@@ -1,9 +1,9 @@
 from abc import abstractmethod
 from collections.abc import Sequence
 
-from app.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
-from app.schemas.type_ids import DocumentId, ProjectId
-from app.services.repositories.base_repository import AbstractRepository
+from app.domain.repositories.base_repository import AbstractRepository
+from app.domain.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
+from app.domain.schemas.type_ids import DocumentId, ProjectId
 
 
 class AbstractDocumentRepository(

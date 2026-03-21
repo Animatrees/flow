@@ -2,13 +2,13 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.schemas.project import (
+from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
     ProjectRead,
     ProjectUpdate,
 )
-from app.schemas.type_ids import ProjectId, UserId
+from app.domain.schemas.type_ids import ProjectId, UserId
 from app.services import AbstractProjectRepository, ConflictError
 
 

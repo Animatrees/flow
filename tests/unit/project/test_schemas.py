@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import ProjectCreate, ProjectStatus, ProjectUpdate
+from app.domain.schemas import ProjectCreate, ProjectStatus, ProjectUpdate
 
 
 def test_project_create_accepts_valid_payload() -> None:

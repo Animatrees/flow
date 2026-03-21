@@ -2,8 +2,8 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
-from app.schemas.type_ids import UserId
+from app.domain.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.schemas.type_ids import UserId
 from app.services import (
     AbstractUserRepository,
     EmailAlreadyExistsError,
