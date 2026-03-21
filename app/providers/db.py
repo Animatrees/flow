@@ -8,19 +8,19 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import Settings
+from app.core.config import DatabaseConfig
 
 
 class SqlalchemyProvider(Provider):
     @provide(scope=Scope.APP)
-    async def provide_engine(self, config: Settings) -> AsyncGenerator[AsyncEngine, None]:
+    async def provide_engine(self, config: DatabaseConfig) -> AsyncGenerator[AsyncEngine, None]:
         engine = create_async_engine(
-            url=config.db.url,
-            echo=config.db.echo,
-            echo_pool=config.db.echo_pool,
-            pool_pre_ping=config.db.pool_pre_ping,
-            pool_size=config.db.pool_size,
-            max_overflow=config.db.max_overflow,
+            url=config.url,
+            echo=config.echo,
+            echo_pool=config.echo_pool,
+            pool_pre_ping=config.pool_pre_ping,
+            pool_size=config.pool_size,
+            max_overflow=config.max_overflow,
         )
         try:
             yield engine
