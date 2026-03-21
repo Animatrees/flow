@@ -1,6 +1,6 @@
-from app.services.storage.file_storage import AbstractFileStorage, StoredFile
+from app.services.storage.file_storage import AbstractFileStorage, StoredObjectMetadata
 
 __all__ = [
     "AbstractFileStorage",
-    "StoredFile",
+    "StoredObjectMetadata",
 ]

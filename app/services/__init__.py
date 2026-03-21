@@ -29,7 +29,7 @@ from app.services.repositories.document_repository import AbstractDocumentReposi
 from app.services.repositories.project_repository import AbstractProjectRepository
 from app.services.repositories.user_repository import AbstractUserRepository
 from app.services.security import hash_password, verify_password
-from app.services.storage.file_storage import AbstractFileStorage, StoredFile
+from app.services.storage.file_storage import AbstractFileStorage, StoredObjectMetadata
 from app.services.user_service import UserService
 
 __all__ = [
@@ -59,7 +59,7 @@ __all__ = [
     "ProjectService",
     "RepositoryError",
     "ServiceError",
-    "StoredFile",
+    "StoredObjectMetadata",
     "UnsupportedDocumentTypeError",
     "UserNotFoundError",
     "UserService",

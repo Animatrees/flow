@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 
 from app.schemas import (
+    DocumentConfirmUpload,
     DocumentCreate,
     DocumentCreateStored,
     DocumentRead,
@@ -21,11 +22,14 @@ from app.services import (
     DocumentService,
     DocumentStorageError,
     DocumentTooLargeError,
+    PermissionDeniedError,
     ProjectAccessDeniedError,
     ProjectNotFoundError,
     RepositoryError,
+    StoredObjectMetadata,
     UnsupportedDocumentTypeError,
 )
+from app.services.document_service import MAX_DOCUMENT_SIZE_BYTES
 from tests.unit.fakes.document_repository import (
     InMemoryDocumentRepository,
     build_document_read,
@@ -131,41 +135,53 @@ def document_service(
     project_repository: InMemoryProjectRepository,
     file_storage: InMemoryFileStorage,
 ) -> DocumentService:
-    return DocumentService(
-        document_repository,
-        project_repository,
-        file_storage,
-        max_document_size_bytes=32,
-    )
+    return DocumentService(document_repository, project_repository, file_storage)
 
 
 @pytest.mark.anyio
-async def test_document_service_create_returns_created_document(
+async def test_document_service_initiate_upload_returns_upload_intent(
     document_service: DocumentService,
     owner: UserRead,
+    file_storage: InMemoryFileStorage,
 ) -> None:
-    created_document = await document_service.create(
+    upload_intent = await document_service.initiate_upload(
         owner,
         PROJECT_ID,
-        DocumentCreate(filename="flow.docx", content_type=DOCX_CONTENT_TYPE),
-        b"document-content",
+        DocumentCreate(
+            filename="flow.docx",
+            content_type=DOCX_CONTENT_TYPE,
+            size_bytes=16,
+        ),
     )
 
-    assert created_document.id == UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
-    assert created_document.project_id == PROJECT_ID
-    assert created_document.uploaded_by == owner.id
-    assert created_document.filename == "flow.docx"
-    assert created_document.content_type == DOCX_CONTENT_TYPE
-    assert created_document.size_bytes == len(b"document-content")
-    assert created_document.storage_key == "documents/generated-key"
-    assert (
-        created_document.checksum
-        == "f53a7ee9b0257605da71b5df4dfde3a12924bdf5ac7200c42b886ba55b53a517"
-    )
+    assert upload_intent.upload_url == file_storage.put_url
+    assert upload_intent.storage_key.startswith(f"projects/{PROJECT_ID}/documents/")
+    assert file_storage.presigned_put_requests == [
+        (upload_intent.storage_key, DOCX_CONTENT_TYPE, MAX_DOCUMENT_SIZE_BYTES)
+    ]
 
 
 @pytest.mark.anyio
-async def test_document_service_create_raises_for_unsupported_document_type(
+async def test_document_service_initiate_upload_allows_filename_without_extension(
+    document_service: DocumentService,
+    owner: UserRead,
+    file_storage: InMemoryFileStorage,
+) -> None:
+    upload_intent = await document_service.initiate_upload(
+        owner,
+        PROJECT_ID,
+        DocumentCreate(
+            filename="flow",
+            content_type=PDF_CONTENT_TYPE,
+            size_bytes=16,
+        ),
+    )
+
+    assert upload_intent.upload_url == file_storage.put_url
+
+
+@pytest.mark.anyio
+async def test_document_service_initiate_upload_raises_for_unsupported_document_type(
     document_service: DocumentService,
     owner: UserRead,
 ) -> None:
@@ -173,33 +189,64 @@ async def test_document_service_create_raises_for_unsupported_document_type(
         UnsupportedDocumentTypeError,
         match=re.escape("Document content type 'text/plain' is not supported."),
     ):
-        await document_service.create(
+        await document_service.initiate_upload(
             owner,
             PROJECT_ID,
-            DocumentCreate(filename="notes.txt", content_type="text/plain"),
-            b"plain-text",
+            DocumentCreate(
+                filename="notes.txt",
+                content_type="text/plain",
+                size_bytes=10,
+            ),
         )
 
 
 @pytest.mark.anyio
-async def test_document_service_create_raises_for_oversized_document(
+async def test_document_service_initiate_upload_raises_for_filename_extension_mismatch(
+    document_service: DocumentService,
+    owner: UserRead,
+) -> None:
+    with pytest.raises(
+        UnsupportedDocumentTypeError,
+        match=re.escape(
+            "Filename 'notes.pdf' does not match the expected extension '.docx' for content type "
+            "'application/vnd.openxmlformats-officedocument.wordprocessingml.document'."
+        ),
+    ):
+        await document_service.initiate_upload(
+            owner,
+            PROJECT_ID,
+            DocumentCreate(
+                filename="notes.pdf",
+                content_type=DOCX_CONTENT_TYPE,
+                size_bytes=10,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_initiate_upload_raises_for_oversized_document(
     document_service: DocumentService,
     owner: UserRead,
 ) -> None:
     with pytest.raises(
         DocumentTooLargeError,
-        match=re.escape("Document exceeds the maximum allowed size of 32 bytes."),
+        match=re.escape(
+            f"Document exceeds the maximum allowed size of {MAX_DOCUMENT_SIZE_BYTES} bytes."
+        ),
     ):
-        await document_service.create(
+        await document_service.initiate_upload(
             owner,
             PROJECT_ID,
-            DocumentCreate(filename="flow.pdf", content_type=PDF_CONTENT_TYPE),
-            b"x" * 33,
+            DocumentCreate(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                size_bytes=MAX_DOCUMENT_SIZE_BYTES + 1,
+            ),
         )
 
 
 @pytest.mark.anyio
-async def test_document_service_create_raises_for_outsider(
+async def test_document_service_initiate_upload_raises_for_outsider(
     document_service: DocumentService,
     outsider: UserRead,
 ) -> None:
@@ -207,16 +254,19 @@ async def test_document_service_create_raises_for_outsider(
         ProjectAccessDeniedError,
         match=re.escape("You do not have access to this project."),
     ):
-        await document_service.create(
+        await document_service.initiate_upload(
             outsider,
             PROJECT_ID,
-            DocumentCreate(filename="flow.pdf", content_type=PDF_CONTENT_TYPE),
-            b"document-content",
+            DocumentCreate(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                size_bytes=16,
+            ),
         )
 
 
 @pytest.mark.anyio
-async def test_document_service_create_raises_for_missing_project(
+async def test_document_service_initiate_upload_raises_for_missing_project(
     document_service: DocumentService,
     owner: UserRead,
 ) -> None:
@@ -224,32 +274,192 @@ async def test_document_service_create_raises_for_missing_project(
         ProjectNotFoundError,
         match=re.escape(f"Project with id '{MISSING_PROJECT_ID}' was not found."),
     ):
-        await document_service.create(
+        await document_service.initiate_upload(
             owner,
             MISSING_PROJECT_ID,
-            DocumentCreate(filename="flow.pdf", content_type=PDF_CONTENT_TYPE),
-            b"document-content",
+            DocumentCreate(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                size_bytes=16,
+            ),
         )
 
 
 @pytest.mark.anyio
-async def test_document_service_create_deletes_file_when_metadata_create_fails(
+async def test_document_service_confirm_upload_allows_filename_without_extension(
+    document_service: DocumentService,
+    file_storage: InMemoryFileStorage,
+    owner: UserRead,
+) -> None:
+    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
+    file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=12)
+
+    created_document = await document_service.confirm_upload(
+        owner,
+        PROJECT_ID,
+        DocumentConfirmUpload(
+            filename="flow",
+            content_type=PDF_CONTENT_TYPE,
+            storage_key=storage_key,
+        ),
+    )
+
+    assert created_document.filename == "flow"
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_returns_created_document(
+    document_service: DocumentService,
+    file_storage: InMemoryFileStorage,
+    owner: UserRead,
+) -> None:
+    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
+    file_storage.files[storage_key] = StoredObjectMetadata(
+        size_bytes=12,
+        etag="etag-1",
+        content_type=PDF_CONTENT_TYPE,
+    )
+
+    created_document = await document_service.confirm_upload(
+        owner,
+        PROJECT_ID,
+        DocumentConfirmUpload(
+            filename="flow.pdf",
+            content_type=PDF_CONTENT_TYPE,
+            storage_key=storage_key,
+        ),
+    )
+
+    assert created_document.id == UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+    assert created_document.project_id == PROJECT_ID
+    assert created_document.uploaded_by == owner.id
+    assert created_document.filename == "flow.pdf"
+    assert created_document.content_type == PDF_CONTENT_TYPE
+    assert created_document.size_bytes == 12
+    assert created_document.storage_key == storage_key
+    assert created_document.checksum is None
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_when_file_is_missing(
+    document_service: DocumentService,
+    owner: UserRead,
+) -> None:
+    missing_storage_key = f"projects/{PROJECT_ID}/documents/missing-key"
+
+    with pytest.raises(
+        DocumentStorageError,
+        match=re.escape(f"Uploaded document '{missing_storage_key}' was not found in storage."),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                storage_key=missing_storage_key,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_foreign_project_storage_key(
+    document_service: DocumentService,
+    owner: UserRead,
+) -> None:
+    foreign_storage_key = f"projects/{MISSING_PROJECT_ID}/documents/generated-key"
+
+    with pytest.raises(
+        DocumentStorageError,
+        match=re.escape(
+            f"Storage key '{foreign_storage_key}' does not belong to project '{PROJECT_ID}'."
+        ),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                storage_key=foreign_storage_key,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_filename_extension_mismatch(
+    document_service: DocumentService,
+    owner: UserRead,
+) -> None:
+    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
+
+    with pytest.raises(
+        UnsupportedDocumentTypeError,
+        match=re.escape(
+            "Filename 'flow.docx' does not match the expected extension '.pdf' for content type "
+            "'application/pdf'."
+        ),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.docx",
+                content_type=PDF_CONTENT_TYPE,
+                storage_key=storage_key,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_oversized_uploaded_document(
+    document_service: DocumentService,
+    file_storage: InMemoryFileStorage,
+    owner: UserRead,
+) -> None:
+    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
+    file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=MAX_DOCUMENT_SIZE_BYTES + 1)
+
+    with pytest.raises(
+        DocumentTooLargeError,
+        match=re.escape(
+            f"Document exceeds the maximum allowed size of {MAX_DOCUMENT_SIZE_BYTES} bytes."
+        ),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                storage_key=storage_key,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_deletes_file_when_metadata_create_fails(
     document_service: DocumentService,
     document_repository: InMemoryDocumentRepository,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
 ) -> None:
+    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
+    file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=12)
     document_repository.create_error = RepositoryError("metadata create failed")
 
     with pytest.raises(RepositoryError, match=re.escape("metadata create failed")):
-        await document_service.create(
+        await document_service.confirm_upload(
             owner,
             PROJECT_ID,
-            DocumentCreate(filename="flow.pdf", content_type=PDF_CONTENT_TYPE),
-            b"document-content",
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                storage_key=storage_key,
+            ),
         )
 
-    assert file_storage.deleted_keys == ["documents/generated-key"]
+    assert file_storage.deleted_keys == [storage_key]
 
 
 @pytest.mark.anyio
@@ -314,6 +524,51 @@ async def test_document_service_delete_removes_document_and_file(
 
 
 @pytest.mark.anyio
+async def test_document_service_delete_allows_participant_to_remove_own_document(
+    document_repository: InMemoryDocumentRepository,
+    project_repository: InMemoryProjectRepository,
+    file_storage: InMemoryFileStorage,
+    participant: UserRead,
+) -> None:
+    participant_document = build_document_read(
+        document_id=UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+        data=DocumentCreateStored(
+            project_id=PROJECT_ID,
+            uploaded_by=PARTICIPANT_ID,
+            filename="participant.pdf",
+            content_type=PDF_CONTENT_TYPE,
+            size_bytes=11,
+            storage_key="documents/participant.pdf",
+            checksum=None,
+        ),
+        created_at=CREATED_AT,
+    )
+    document_repository.documents[participant_document.id] = participant_document
+    document_service = DocumentService(
+        document_repository,
+        project_repository,
+        file_storage,
+    )
+
+    await document_service.delete(participant, participant_document.id)
+
+    assert await document_repository.get_by_id(participant_document.id) is None
+    assert file_storage.deleted_keys == ["documents/participant.pdf"]
+
+
+@pytest.mark.anyio
+async def test_document_service_delete_raises_for_participant_deleting_foreign_document(
+    document_service: DocumentService,
+    participant: UserRead,
+) -> None:
+    with pytest.raises(
+        PermissionDeniedError,
+        match=re.escape("You do not have sufficient permissions to perform this action."),
+    ):
+        await document_service.delete(participant, DOCUMENT_ID)
+
+
+@pytest.mark.anyio
 async def test_document_service_delete_ignores_storage_delete_failure(
     document_service: DocumentService,
     document_repository: InMemoryDocumentRepository,
@@ -325,3 +580,15 @@ async def test_document_service_delete_ignores_storage_delete_failure(
     await document_service.delete(owner, DOCUMENT_ID)
 
     assert await document_repository.get_by_id(DOCUMENT_ID) is None
+
+
+@pytest.mark.anyio
+async def test_document_service_get_download_url_returns_presigned_url(
+    document_service: DocumentService,
+    file_storage: InMemoryFileStorage,
+    participant: UserRead,
+) -> None:
+    download_url = await document_service.get_download_url(participant, DOCUMENT_ID)
+
+    assert download_url == file_storage.get_url
+    assert file_storage.presigned_get_requests == ["documents/architecture.pdf"]

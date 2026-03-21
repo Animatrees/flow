@@ -1,15 +1,24 @@
-import asyncio
 import logging
 from collections.abc import Sequence
-from hashlib import sha256
 
-from app.schemas.document import DocumentCreate, DocumentCreateStored, DocumentRead, DocumentUpdate
+from uuid_extensions import uuid7
+
+from app.schemas.document import (
+    DocumentConfirmUpload,
+    DocumentCreate,
+    DocumentCreateStored,
+    DocumentRead,
+    DocumentUpdate,
+    UploadIntentResponse,
+)
 from app.schemas.project import ProjectRead
 from app.schemas.type_ids import DocumentId, ProjectId
 from app.schemas.user import UserRead
 from app.services.exceptions import (
     DocumentNotFoundError,
+    DocumentStorageError,
     DocumentTooLargeError,
+    PermissionDeniedError,
     ProjectAccessDeniedError,
     ProjectNotFoundError,
     UnsupportedDocumentTypeError,
@@ -20,6 +29,12 @@ from app.services.storage.file_storage import AbstractFileStorage
 
 logger = logging.getLogger(__name__)
 
+MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024
+ALLOWED_FILE_TYPES = {
+    "application/pdf": ".pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+}
+
 
 class DocumentService:
     def __init__(
@@ -27,39 +42,49 @@ class DocumentService:
         repo: AbstractDocumentRepository,
         project_repo: AbstractProjectRepository,
         file_storage: AbstractFileStorage,
-        *,
-        max_document_size_bytes: int = 10 * 1024 * 1024,
-        allowed_content_types: frozenset[str] | None = None,
     ) -> None:
         self.repo = repo
         self.project_repo = project_repo
         self.file_storage = file_storage
-        self.max_document_size_bytes = max_document_size_bytes
-        self.allowed_content_types = allowed_content_types or frozenset(
-            {
-                "application/pdf",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            }
-        )
 
-    async def create(
+    async def initiate_upload(
         self,
         current_user: UserRead,
         project_id: ProjectId,
         data: DocumentCreate,
-        content: bytes,
+    ) -> UploadIntentResponse:
+        await self._ensure_project_access(current_user, project_id)
+        self._validate_file_type(data.filename, data.content_type)
+        self._validate_size(data.size_bytes)
+
+        storage_key = self._build_storage_key(project_id)
+        upload_url = await self.file_storage.generate_presigned_put_url(
+            storage_key=storage_key,
+            content_type=data.content_type,
+            max_size=MAX_DOCUMENT_SIZE_BYTES,
+        )
+
+        return UploadIntentResponse(
+            upload_url=upload_url,
+            storage_key=storage_key,
+        )
+
+    async def confirm_upload(
+        self,
+        current_user: UserRead,
+        project_id: ProjectId,
+        data: DocumentConfirmUpload,
     ) -> DocumentRead:
         await self._ensure_project_access(current_user, project_id)
-        self._validate_content_type(data.content_type)
-        size_bytes = self._validate_size(content)
-        checksum = await self._calculate_checksum(content)
+        self._validate_file_type(data.filename, data.content_type)
+        self._ensure_storage_key_matches_project(project_id, data.storage_key)
 
-        stored_file = await self.file_storage.save(
-            content,
-            filename=data.filename,
-            content_type=data.content_type,
-            checksum=checksum,
-        )
+        stored_object = await self.file_storage.get_file_metadata(data.storage_key)
+        if stored_object is None:
+            msg = f"Uploaded document '{data.storage_key}' was not found in storage."
+            raise DocumentStorageError(msg)
+
+        size_bytes = self._validate_size(stored_object.size_bytes)
 
         try:
             return await self.repo.create(
@@ -69,18 +94,23 @@ class DocumentService:
                     filename=data.filename,
                     content_type=data.content_type,
                     size_bytes=size_bytes,
-                    storage_key=stored_file.storage_key,
-                    checksum=checksum,
+                    storage_key=data.storage_key,
+                    checksum=data.checksum,
                 )
             )
         except Exception:
-            await self._delete_file_safely(stored_file.storage_key)
+            await self._delete_file_safely(data.storage_key)
             raise
 
     async def get_by_id(self, current_user: UserRead, document_id: DocumentId) -> DocumentRead:
         document = await self._get_document(document_id)
         await self._ensure_project_access(current_user, document.project_id)
         return document
+
+    async def get_download_url(self, current_user: UserRead, document_id: DocumentId) -> str:
+        document = await self._get_document(document_id)
+        await self._ensure_project_access(current_user, document.project_id)
+        return await self.file_storage.generate_presigned_get_url(document.storage_key)
 
     async def get_all_for_project(
         self,
@@ -107,7 +137,7 @@ class DocumentService:
 
     async def delete(self, current_user: UserRead, document_id: DocumentId) -> None:
         document = await self._get_document(document_id)
-        await self._ensure_project_access(current_user, document.project_id)
+        await self._ensure_delete_access(current_user, document)
 
         success = await self.repo.delete(document_id)
         if not success:
@@ -141,24 +171,62 @@ class DocumentService:
     def _is_owner(current_user: UserRead, project: ProjectRead) -> bool:
         return current_user.id == project.owner_id
 
-    def _validate_content_type(self, content_type: str) -> None:
-        if content_type not in self.allowed_content_types:
+    @staticmethod
+    def _build_storage_key(project_id: ProjectId) -> str:
+        return f"projects/{project_id}/documents/{uuid7()}"
+
+    @staticmethod
+    def _ensure_storage_key_matches_project(project_id: ProjectId, storage_key: str) -> None:
+        expected_prefix = f"projects/{project_id}/documents/"
+        if storage_key.startswith(expected_prefix):
+            return
+
+        msg = f"Storage key '{storage_key}' does not belong to project '{project_id}'."
+        raise DocumentStorageError(msg)
+
+    @staticmethod
+    def _validate_content_type(content_type: str) -> None:
+        if content_type not in ALLOWED_FILE_TYPES:
             msg = f"Document content type '{content_type}' is not supported."
             raise UnsupportedDocumentTypeError(msg)
 
-    def _validate_size(self, content: bytes) -> int:
-        size_bytes = len(content)
-        if size_bytes > self.max_document_size_bytes:
-            msg = (
-                f"Document exceeds the maximum allowed size of "
-                f"{self.max_document_size_bytes} bytes."
-            )
+    def _validate_file_type(self, filename: str, content_type: str) -> None:
+        self._validate_content_type(content_type)
+        expected_extension = ALLOWED_FILE_TYPES[content_type]
+
+        if "." not in filename:
+            return
+        if filename.lower().endswith(expected_extension):
+            return
+
+        msg = (
+            f"Filename '{filename}' does not match the expected extension "
+            f"'{expected_extension}' for content type '{content_type}'."
+        )
+        raise UnsupportedDocumentTypeError(msg)
+
+    @staticmethod
+    def _validate_size(size_bytes: int) -> int:
+        if size_bytes > MAX_DOCUMENT_SIZE_BYTES:
+            msg = f"Document exceeds the maximum allowed size of {MAX_DOCUMENT_SIZE_BYTES} bytes."
             raise DocumentTooLargeError(msg)
         return size_bytes
 
-    @staticmethod
-    async def _calculate_checksum(content: bytes) -> str:
-        return await asyncio.to_thread(lambda: sha256(content).hexdigest())
+    async def _ensure_delete_access(self, current_user: UserRead, document: DocumentRead) -> None:
+        project = await self.project_repo.get_by_id(document.project_id)
+        if project is None:
+            msg = f"Project with id '{document.project_id}' was not found."
+            raise ProjectNotFoundError(msg)
+
+        if self._is_owner(current_user, project):
+            return
+
+        if await self.project_repo.is_member(document.project_id, current_user.id):
+            if document.uploaded_by == current_user.id:
+                return
+            raise PermissionDeniedError
+
+        raise ProjectAccessDeniedError
 
     async def _delete_file_safely(self, storage_key: str) -> None:
         try:

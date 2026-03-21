@@ -1,9 +1,11 @@
 from app.schemas.auth import LoginRequest, RegisterRequest
 from app.schemas.document import (
+    DocumentConfirmUpload,
     DocumentCreate,
     DocumentCreateStored,
     DocumentRead,
     DocumentUpdate,
+    UploadIntentResponse,
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -17,6 +19,7 @@ from app.schemas.type_ids import DocumentId, ProjectId, UserId
 from app.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
 
 __all__ = [
+    "DocumentConfirmUpload",
     "DocumentCreate",
     "DocumentCreateStored",
     "DocumentId",
@@ -31,6 +34,7 @@ __all__ = [
     "ProjectStatus",
     "ProjectUpdate",
     "RegisterRequest",
+    "UploadIntentResponse",
     "UserAuthRead",
     "UserCreate",
     "UserId",
