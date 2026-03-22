@@ -11,7 +11,10 @@ from app.db.repositories.exceptions import (
     RepositoryError,
     UserNotFoundError,
 )
-from app.domain.repositories.project_repository import AbstractProjectRepository
+from app.domain.repositories.project_repository import (
+    AbstractProjectRepository,
+    ProjectWithUserRole,
+)
 from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
@@ -25,6 +28,29 @@ from app.domain.schemas.type_ids import ProjectId, UserId
 class ProjectRepository(AbstractProjectRepository):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def get_project_with_user_role(
+        self,
+        project_id: ProjectId,
+        user_id: UserId,
+    ) -> ProjectWithUserRole | None:
+        statement = (
+            select(Project, ProjectMember.role)
+            .outerjoin(
+                ProjectMember,
+                (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == user_id),
+            )
+            .where(Project.id == project_id)
+        )
+        row = (await self.session.execute(statement)).one_or_none()
+        if row is None:
+            return None
+
+        project, role = row
+        return ProjectWithUserRole(
+            project=ProjectRead.model_validate(project),
+            role=role,
+        )
 
     async def get_by_id(self, id_: ProjectId) -> ProjectRead | None:
         project = await self.session.get(Project, id_)

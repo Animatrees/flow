@@ -2,6 +2,7 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from app.domain.repositories.project_repository import ProjectWithUserRole
 from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
@@ -52,6 +53,20 @@ class InMemoryProjectRepository(AbstractProjectRepository):
 
     async def get_by_id(self, id_: UUID) -> ProjectRead | None:
         return self.projects.get(id_)
+
+    async def get_project_with_user_role(
+        self,
+        project_id: UUID,
+        user_id: UUID,
+    ) -> ProjectWithUserRole | None:
+        project = self.projects.get(project_id)
+        if project is None:
+            return None
+
+        return ProjectWithUserRole(
+            project=project,
+            role=self.members.get(project_id, {}).get(user_id),
+        )
 
     async def get_all(self) -> Sequence[ProjectRead]:
         return list(self.projects.values())

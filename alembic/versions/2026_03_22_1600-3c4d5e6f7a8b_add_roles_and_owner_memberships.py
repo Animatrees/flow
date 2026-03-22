@@ -35,20 +35,24 @@ project_member_role_enum = sa.Enum(
 
 def upgrade() -> None:
     """Upgrade schema."""
+    project_member_role_enum.create(op.get_bind(), checkfirst=True)
+
     op.add_column(
         "project_members",
         sa.Column("role", project_member_role_enum, nullable=True),
     )
 
     op.execute(
-        sa.text("UPDATE project_members SET role = :member_role WHERE role IS NULL").bindparams(
-            member_role=ProjectMemberRole.MEMBER.value
-        )
+        sa.text(
+            "UPDATE project_members "
+            "SET role = CAST(:member_role AS project_member_role) "
+            "WHERE role IS NULL"
+        ).bindparams(member_role=ProjectMemberRole.MEMBER.value)
     )
     op.execute(
         sa.text(
             "INSERT INTO project_members (project_id, user_id, role) "
-            "SELECT id, owner_id, :owner_role "
+            "SELECT id, owner_id, CAST(:owner_role AS project_member_role) "
             "FROM projects "
             "WHERE NOT EXISTS ("
             "    SELECT 1 "

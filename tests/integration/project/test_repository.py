@@ -452,6 +452,73 @@ async def test_has_access_to_project_returns_true_for_owner_and_member(
     assert await repository.has_access_to_project(FIRST_PROJECT_ID, OWNER_ID) is True
 
 
+async def test_get_project_with_user_role_returns_owner_member_or_outsider_role(
+    repository: ProjectRepository,
+    db_session: AsyncSession,
+) -> None:
+    await seed_user(
+        db_session,
+        user_id=OWNER_ID,
+        username="owner",
+        email="owner@example.com",
+    )
+    await seed_user(
+        db_session,
+        user_id=PARTICIPANT_ID,
+        username="participant",
+        email="participant@example.com",
+    )
+    await seed_user(
+        db_session,
+        user_id=OUTSIDER_ID,
+        username="outsider",
+        email="outsider@example.com",
+    )
+    await seed_project(
+        db_session,
+        project_id=FIRST_PROJECT_ID,
+        data=ProjectCreateWithOwner(
+            name="Flow",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        ),
+    )
+    await seed_member(
+        db_session,
+        project_id=FIRST_PROJECT_ID,
+        user_id=PARTICIPANT_ID,
+    )
+
+    owner_access = await repository.get_project_with_user_role(FIRST_PROJECT_ID, OWNER_ID)
+    participant_access = await repository.get_project_with_user_role(
+        FIRST_PROJECT_ID,
+        PARTICIPANT_ID,
+    )
+    outsider_access = await repository.get_project_with_user_role(
+        FIRST_PROJECT_ID,
+        OUTSIDER_ID,
+    )
+
+    assert owner_access is not None
+    assert owner_access.project.id == FIRST_PROJECT_ID
+    assert owner_access.role is ProjectMemberRole.OWNER
+    assert participant_access is not None
+    assert participant_access.project.id == FIRST_PROJECT_ID
+    assert participant_access.role is ProjectMemberRole.MEMBER
+    assert outsider_access is not None
+    assert outsider_access.project.id == FIRST_PROJECT_ID
+    assert outsider_access.role is None
+
+
+async def test_get_project_with_user_role_returns_none_for_missing_project(
+    repository: ProjectRepository,
+) -> None:
+    assert await repository.get_project_with_user_role(MISSING_PROJECT_ID, OWNER_ID) is None
+
+
 async def test_add_member_creates_membership(
     repository: ProjectRepository,
     db_session: AsyncSession,
