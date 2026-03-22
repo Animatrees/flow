@@ -1,11 +1,16 @@
+from uuid import UUID
+
 import httpx
 import pytest
+from dishka.integrations.fastapi import AsyncContainer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import User
 
 pytestmark = pytest.mark.anyio
 
 JSON_CONTENT_TYPE = "application/json"
 TEST_PASSWORD = "StrongPass1!"
-TEST_PASSWORD_HASH = "hashed-password"
 
 
 async def register_user(
@@ -83,7 +88,37 @@ async def authorized_headers(
     return {"Authorization": f"Bearer {login_response.json()['access_token']}"}
 
 
-async def test_get_user_by_id_returns_existing_user(client: httpx.AsyncClient) -> None:
+async def promote_user_to_admin(container: AsyncContainer, user_id: str) -> None:
+    async with container() as request_container:
+        session = await request_container.get(AsyncSession)
+        user = await session.get(User, UUID(user_id))
+        assert user is not None
+        user.is_superuser = True
+        await session.flush()
+
+
+async def test_get_me_returns_current_user(client: httpx.AsyncClient) -> None:
+    await register_user(
+        client,
+        username="valid.user",
+        email="user@example.com",
+    )
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="valid.user",
+    )
+
+    response = await client.get("/api/v1/users/me", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json()["username"] == "valid.user"
+    assert response.json()["email"] == "user@example.com"
+    assert UUID(response.json()["id"])
+    assert response.json()["last_login_at"] is not None
+
+
+async def test_get_user_by_id_returns_public_view(client: httpx.AsyncClient) -> None:
     register_response = await register_user(
         client,
         username="valid.user",
@@ -100,39 +135,17 @@ async def test_get_user_by_id_returns_existing_user(client: httpx.AsyncClient) -
         headers=headers,
     )
 
-    assert register_response.status_code == 201
     assert response.status_code == 200
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == register_response.json()
+    assert response.json() == {
+        "id": register_response.json()["id"],
+        "username": "valid.user",
+        "last_login_at": register_response.json()["last_login_at"],
+    }
 
 
-async def test_get_user_by_username_returns_existing_user(
-    client: httpx.AsyncClient,
-) -> None:
-    register_response = await register_user(
-        client,
-        username="valid.user",
-        email="user@example.com",
-    )
-    headers = await authorized_headers(
-        client,
-        username="auth.user",
-        email="auth@example.com",
-    )
-
-    response = await client.get(
-        "/api/v1/users/by-username/VALID.USER",
-        headers=headers,
-    )
-
-    assert register_response.status_code == 201
-    assert response.status_code == 200
-    assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == register_response.json()
-
-
-async def test_update_user_returns_updated_user(client: httpx.AsyncClient) -> None:
-    register_response = await register_user(
+async def test_update_me_returns_updated_user(client: httpx.AsyncClient) -> None:
+    await register_user(
         client,
         username="valid.user",
         email="user@example.com",
@@ -143,86 +156,21 @@ async def test_update_user_returns_updated_user(client: httpx.AsyncClient) -> No
     )
 
     response = await client.patch(
-        f"/api/v1/users/{register_response.json()['id']}",
+        "/api/v1/users/me",
         json={"email": "Updated@Example.com"},
         headers=headers,
     )
 
-    assert register_response.status_code == 201
     assert response.status_code == 200
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json()["username"] == "valid.user"
     assert response.json()["email"] == "updated@example.com"
 
 
-async def test_update_user_returns_conflict_for_duplicate_email(
+async def test_delete_me_returns_no_content_and_blocks_future_login(
     client: httpx.AsyncClient,
 ) -> None:
-    first_response = await register_user(
-        client,
-        username="first.user",
-        email="first@example.com",
-    )
-    second_response = await register_user(
-        client,
-        username="second.user",
-        email="second@example.com",
-    )
-    headers = await authorization_header_for_existing_user(
-        client,
-        username="second.user",
-    )
-
-    response = await client.patch(
-        f"/api/v1/users/{second_response.json()['id']}",
-        json={"email": "first@example.com"},
-        headers=headers,
-    )
-
-    assert first_response.status_code == 201
-    assert second_response.status_code == 201
-    assert response.status_code == 409
-    assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == {"message": "Email 'first@example.com' already exists."}
-
-
-async def test_update_user_returns_forbidden_for_another_user(
-    client: httpx.AsyncClient,
-) -> None:
-    first_response = await register_user(
-        client,
-        username="first.user",
-        email="first@example.com",
-    )
-    second_response = await register_user(
-        client,
-        username="second.user",
-        email="second@example.com",
-    )
-    headers = await authorization_header_for_existing_user(
-        client,
-        username="first.user",
-    )
-
-    response = await client.patch(
-        f"/api/v1/users/{second_response.json()['id']}",
-        json={"email": "updated@example.com"},
-        headers=headers,
-    )
-
-    assert first_response.status_code == 201
-    assert second_response.status_code == 201
-    assert response.status_code == 403
-    assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == {
-        "message": "You do not have sufficient permissions to perform this action."
-    }
-
-
-async def test_delete_user_returns_no_content_for_self_and_blocks_future_login(
-    client: httpx.AsyncClient,
-) -> None:
-    register_response = await register_user(
+    await register_user(
         client,
         username="valid.user",
         email="user@example.com",
@@ -232,10 +180,7 @@ async def test_delete_user_returns_no_content_for_self_and_blocks_future_login(
         username="valid.user",
     )
 
-    delete_response = await client.delete(
-        f"/api/v1/users/{register_response.json()['id']}",
-        headers=headers,
-    )
+    delete_response = await client.delete("/api/v1/users/me", headers=headers)
     login_response = await login_user(
         client,
         username="valid.user",
@@ -248,31 +193,171 @@ async def test_delete_user_returns_no_content_for_self_and_blocks_future_login(
     assert login_response.json() == {"message": "Invalid username or password."}
 
 
-async def test_delete_user_returns_forbidden_for_another_user(
-    client: httpx.AsyncClient,
-) -> None:
-    first_response = await register_user(
+async def test_get_users_list_is_not_available_for_regular_user(client: httpx.AsyncClient) -> None:
+    headers = await authorized_headers(
         client,
-        username="first.user",
-        email="first@example.com",
-    )
-    second_response = await register_user(
-        client,
-        username="second.user",
-        email="second@example.com",
-    )
-    headers = await authorization_header_for_existing_user(
-        client,
-        username="first.user",
+        username="valid.user",
+        email="user@example.com",
     )
 
-    response = await client.delete(
-        f"/api/v1/users/{second_response.json()['id']}",
+    response = await client.get("/api/v1/users", headers=headers)
+
+    assert response.status_code == 404
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+
+
+async def test_admin_get_users_returns_full_user_views(
+    client: httpx.AsyncClient,
+    container: AsyncContainer,
+) -> None:
+    admin_response = await register_user(
+        client,
+        username="admin.user",
+        email="admin@example.com",
+    )
+    await register_user(
+        client,
+        username="regular.user",
+        email="regular@example.com",
+    )
+    await promote_user_to_admin(container, admin_response.json()["id"])
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="admin.user",
+    )
+
+    response = await client.get("/api/v1/admin/users", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert len(response.json()) == 2
+    assert response.json()[0].keys() == {
+        "id",
+        "username",
+        "email",
+        "is_superuser",
+        "is_active",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+        "deleted_at",
+    }
+    assert any(user["is_superuser"] is True for user in response.json())
+
+
+async def test_admin_patch_user_updates_role_and_activity(
+    client: httpx.AsyncClient,
+    container: AsyncContainer,
+) -> None:
+    admin_response = await register_user(
+        client,
+        username="admin.user",
+        email="admin@example.com",
+    )
+    target_response = await register_user(
+        client,
+        username="regular.user",
+        email="regular@example.com",
+    )
+    await promote_user_to_admin(container, admin_response.json()["id"])
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="admin.user",
+    )
+
+    response = await client.patch(
+        f"/api/v1/admin/users/{target_response.json()['id']}",
+        json={"is_superuser": True, "is_active": False},
         headers=headers,
     )
 
-    assert first_response.status_code == 201
-    assert second_response.status_code == 201
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json()["is_superuser"] is True
+    assert response.json()["is_active"] is False
+
+
+async def test_admin_delete_user_by_id_soft_deletes_target(
+    client: httpx.AsyncClient,
+    container: AsyncContainer,
+) -> None:
+    admin_response = await register_user(
+        client,
+        username="admin.user",
+        email="admin@example.com",
+    )
+    target_response = await register_user(
+        client,
+        username="regular.user",
+        email="regular@example.com",
+    )
+    await promote_user_to_admin(container, admin_response.json()["id"])
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="admin.user",
+    )
+
+    delete_response = await client.delete(
+        f"/api/v1/admin/users/{target_response.json()['id']}",
+        headers=headers,
+    )
+    login_response = await login_user(
+        client,
+        username="regular.user",
+    )
+
+    assert delete_response.status_code == 204
+    assert login_response.status_code == 401
+
+
+async def test_admin_get_user_by_id_returns_soft_deleted_user(
+    client: httpx.AsyncClient,
+    container: AsyncContainer,
+) -> None:
+    admin_response = await register_user(
+        client,
+        username="admin.user",
+        email="admin@example.com",
+    )
+    target_response = await register_user(
+        client,
+        username="regular.user",
+        email="regular@example.com",
+    )
+    await promote_user_to_admin(container, admin_response.json()["id"])
+    headers = await authorization_header_for_existing_user(
+        client,
+        username="admin.user",
+    )
+    delete_response = await client.delete(
+        f"/api/v1/admin/users/{target_response.json()['id']}",
+        headers=headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/admin/users/{target_response.json()['id']}",
+        headers=headers,
+    )
+
+    assert delete_response.status_code == 204
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json()["id"] == target_response.json()["id"]
+    assert response.json()["deleted_at"] is not None
+    assert response.json()["is_active"] is False
+
+
+async def test_admin_endpoints_return_forbidden_for_regular_user(
+    client: httpx.AsyncClient,
+) -> None:
+    headers = await authorized_headers(
+        client,
+        username="valid.user",
+        email="user@example.com",
+    )
+
+    response = await client.get("/api/v1/admin/users", headers=headers)
+
     assert response.status_code == 403
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json() == {
@@ -280,88 +365,17 @@ async def test_delete_user_returns_forbidden_for_another_user(
     }
 
 
-async def test_get_users_returns_all_users(client: httpx.AsyncClient) -> None:
-    first_response = await register_user(
-        client,
-        username="first.user",
-        email="first@example.com",
-    )
-    second_response = await register_user(
-        client,
-        username="second.user",
-        email="second@example.com",
-    )
-    headers = await authorization_header_for_existing_user(
-        client,
-        username="first.user",
-    )
+async def test_admin_routes_are_hidden_from_openapi(client: httpx.AsyncClient) -> None:
+    response = await client.get("/openapi.json")
 
-    response = await client.get("/api/v1/users", headers=headers)
-
-    assert first_response.status_code == 201
-    assert second_response.status_code == 201
     assert response.status_code == 200
-    assert response.headers["content-type"] == JSON_CONTENT_TYPE
-
-    users_by_username = {
-        user["username"]: user
-        for user in sorted(response.json(), key=lambda user: user["username"])
-    }
-    first_user = users_by_username["first.user"]
-    second_user = users_by_username["second.user"]
-
-    assert first_user["id"] == first_response.json()["id"]
-    assert first_user["email"] == first_response.json()["email"]
-    assert first_user["last_login_at"] is not None
-
-    assert second_user == second_response.json()
+    assert "/api/v1/admin/users" not in response.json()["paths"]
+    assert "/api/v1/admin/users/{user_id}" not in response.json()["paths"]
 
 
-async def test_get_user_by_id_returns_not_found_for_missing_user(
-    client: httpx.AsyncClient,
-) -> None:
-    headers = await authorized_headers(
-        client,
-        username="auth.user",
-        email="auth@example.com",
-    )
-    response = await client.get(
-        "/api/v1/users/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        headers=headers,
-    )
-
-    assert response.status_code == 404
-    assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == {
-        "message": "User with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' was not found."
-    }
-
-
-async def test_get_users_returns_unauthorized_without_token(
-    client: httpx.AsyncClient,
-) -> None:
-    response = await client.get("/api/v1/users")
+async def test_users_endpoints_require_authentication(client: httpx.AsyncClient) -> None:
+    response = await client.get("/api/v1/users/me")
 
     assert response.status_code == 401
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json() == {"message": "Not authenticated"}
-
-
-async def test_login_updates_last_login_at_in_user_read(client: httpx.AsyncClient) -> None:
-    register_response = await register_user(
-        client,
-        username="valid.user",
-        email="user@example.com",
-    )
-    headers = await authorization_header_for_existing_user(
-        client,
-        username="valid.user",
-    )
-
-    response = await client.get(
-        f"/api/v1/users/{register_response.json()['id']}",
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["last_login_at"] is not None

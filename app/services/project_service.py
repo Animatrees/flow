@@ -11,7 +11,7 @@ from app.domain.schemas import (
     ProjectUpdate,
 )
 from app.domain.schemas.type_ids import ProjectId, UserId
-from app.domain.schemas.user import UserRead
+from app.domain.schemas.user import UserAuthRead
 from app.services.exceptions import (
     ConflictError,
     InvalidProjectDatesError,
@@ -32,7 +32,7 @@ class ProjectService:
         self.repo = repo
         self.user_repo = user_repo
 
-    async def create(self, owner: UserRead, data: ProjectCreate) -> ProjectRead:
+    async def create(self, owner: UserAuthRead, data: ProjectCreate) -> ProjectRead:
         self._validate_date_range(
             start_date=data.start_date,
             end_date=data.end_date,
@@ -44,17 +44,17 @@ class ProjectService:
             )
         )
 
-    async def get_by_id(self, current_user: UserRead, project_id: ProjectId) -> ProjectRead:
+    async def get_by_id(self, current_user: UserAuthRead, project_id: ProjectId) -> ProjectRead:
         project = await self._get_project(project_id)
         await self._ensure_project_access(current_user, project)
         return project
 
-    async def get_all_for_user(self, current_user: UserRead) -> Sequence[ProjectRead]:
+    async def get_all_for_user(self, current_user: UserAuthRead) -> Sequence[ProjectRead]:
         return await self.repo.get_all_for_user(current_user.id)
 
     async def update(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project_id: ProjectId,
         data: ProjectUpdate,
     ) -> ProjectRead:
@@ -71,7 +71,7 @@ class ProjectService:
             raise ProjectNotFoundError(msg)
         return updated_project
 
-    async def delete(self, current_user: UserRead, project_id: ProjectId) -> None:
+    async def delete(self, current_user: UserAuthRead, project_id: ProjectId) -> None:
         project = await self._get_project(project_id)
         await self._ensure_owner_access(current_user, project)
 
@@ -82,7 +82,7 @@ class ProjectService:
 
     async def add_member(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project_id: ProjectId,
         user_id: UserId,
     ) -> ProjectMemberRead:
@@ -91,7 +91,7 @@ class ProjectService:
 
         if user_id == project.owner_id:
             raise ProjectMemberAlreadyExistsError
-        if await self.user_repo.get_by_id(user_id) is None:
+        if await self.user_repo.get_active_by_id(user_id) is None:
             msg = f"User with id '{user_id}' was not found."
             raise UserNotFoundError(msg)
 
@@ -109,7 +109,7 @@ class ProjectService:
 
     async def _ensure_project_access(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project: ProjectRead,
     ) -> None:
         if current_user.id == project.owner_id:
@@ -122,7 +122,7 @@ class ProjectService:
 
     async def _ensure_owner_access(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project: ProjectRead,
     ) -> None:
         if current_user.id == project.owner_id:

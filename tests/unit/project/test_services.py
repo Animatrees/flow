@@ -13,7 +13,9 @@ from app.domain.schemas import (
     ProjectStatus,
     ProjectUpdate,
     UserId,
-    UserRead,
+)
+from app.domain.schemas import (
+    UserAuthRead as UserRead,
 )
 from app.services import (
     ConflictError,
@@ -39,13 +41,12 @@ CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def build_user(user_id: UUID, username: str, email: str) -> UserRead:
-    return UserRead(
-        id=UserId(user_id),
+    return build_user_auth_read(
+        user_id=user_id,
         username=username,
         email=email,
+        password_hash="hashed-password",
         created_at=CREATED_AT,
-        updated_at=CREATED_AT,
-        last_login_at=None,
     )
 
 

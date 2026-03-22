@@ -14,7 +14,9 @@ from app.domain.schemas import (
     ProjectMemberRead,
     ProjectRead,
     ProjectStatus,
-    UserRead,
+)
+from app.domain.schemas import (
+    UserAuthRead as UserRead,
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
 from app.services import (
@@ -54,9 +56,13 @@ def build_user(user_id: UUID, username: str, email: str) -> UserRead:
         id=UserId(user_id),
         username=username,
         email=email,
+        password_hash="hashed-password",
+        is_superuser=False,
+        is_active=True,
         created_at=CREATED_AT,
         updated_at=CREATED_AT,
         last_login_at=None,
+        deleted_at=None,
     )
 
 

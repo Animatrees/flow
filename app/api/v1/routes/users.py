@@ -6,9 +6,8 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import Response
 
 from app.api.v1.get_current_user import get_current_user
-from app.domain.schemas import UserId, UserRead, UserUpdate
-from app.domain.schemas.user import Username
-from app.services import UserLifecycleService, UserService
+from app.domain.schemas import UserAuthRead, UserId, UserPublicRead, UserSelfRead, UserUpdate
+from app.services import UserService
 
 router = APIRouter(
     route_class=DishkaRoute,
@@ -17,24 +16,38 @@ router = APIRouter(
 
 
 @router.get(
-    "",
+    "/me",
     status_code=status.HTTP_200_OK,
 )
-async def get_users(
+async def get_me(
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
     user_service: FromDishka[UserService],
-) -> list[UserRead]:
-    return list(await user_service.get_all())
+) -> UserSelfRead:
+    return await user_service.get_self_by_id(current_user.id)
 
 
-@router.get(
-    "/by-username/{username}",
+@router.patch(
+    "/me",
     status_code=status.HTTP_200_OK,
 )
-async def get_user_by_username(
-    username: Username,
+async def update_me(
+    data: UserUpdate,
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
     user_service: FromDishka[UserService],
-) -> UserRead:
-    return await user_service.get_by_username(username)
+) -> UserSelfRead:
+    return await user_service.update_self(current_user.id, data)
+
+
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_me(
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
+    user_service: FromDishka[UserService],
+) -> Response:
+    await user_service.delete_self(current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -44,31 +57,5 @@ async def get_user_by_username(
 async def get_user_by_id(
     user_id: UserId,
     user_service: FromDishka[UserService],
-) -> UserRead:
-    return await user_service.get_by_id(user_id)
-
-
-@router.patch(
-    "/{user_id}",
-    status_code=status.HTTP_200_OK,
-)
-async def update_user(
-    user_id: UserId,
-    data: UserUpdate,
-    user_service: FromDishka[UserService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
-) -> UserRead:
-    return await user_service.update(current_user, user_id, data)
-
-
-@router.delete(
-    "/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_user(
-    user_id: UserId,
-    user_lifecycle_service: FromDishka[UserLifecycleService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
-) -> Response:
-    await user_lifecycle_service.delete_account(current_user, user_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+) -> UserPublicRead:
+    return await user_service.get_public_by_id(user_id)

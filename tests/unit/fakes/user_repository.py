@@ -2,7 +2,16 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.domain.schemas import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.schemas import (
+    UserAdminRead,
+    UserAdminUpdate,
+    UserAuthRead,
+    UserCreate,
+    UserData,
+    UserPublicRead,
+    UserSelfRead,
+    UserUpdate,
+)
 from app.domain.schemas.type_ids import UserId
 from app.services import (
     AbstractUserRepository,
@@ -20,6 +29,7 @@ def build_user_auth_read(  # noqa: PLR0913
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
     last_login_at: datetime | None = None,
+    is_superuser: bool = False,
     is_active: bool = True,
     deleted_at: datetime | None = None,
 ) -> UserAuthRead:
@@ -29,6 +39,7 @@ def build_user_auth_read(  # noqa: PLR0913
         username=username,
         email=email,
         password_hash=password_hash,
+        is_superuser=is_superuser,
         is_active=is_active,
         created_at=timestamp,
         updated_at=updated_at or timestamp,
@@ -37,14 +48,40 @@ def build_user_auth_read(  # noqa: PLR0913
     )
 
 
-def to_user_read(user: UserAuthRead) -> UserRead:
-    return UserRead(
+def to_user_data(user: UserAuthRead) -> UserData:
+    return UserData.model_validate(user)
+
+
+def to_user_self_read(user: UserAuthRead) -> UserSelfRead:
+    return UserSelfRead(
         id=user.id,
         username=user.username,
         email=user.email,
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
+    )
+
+
+def to_user_public_read(user: UserAuthRead) -> UserPublicRead:
+    return UserPublicRead(
+        id=user.id,
+        username=user.username,
+        last_login_at=user.last_login_at,
+    )
+
+
+def to_user_admin_read(user: UserAuthRead) -> UserAdminRead:
+    return UserAdminRead(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        is_superuser=user.is_superuser,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        last_login_at=user.last_login_at,
+        deleted_at=user.deleted_at,
     )
 
 
@@ -59,20 +96,28 @@ class InMemoryUserRepository(AbstractUserRepository):
         self.update_error: Exception | None = None
         self.id_factory = id_factory or uuid4
 
-    async def get_by_id(self, id_: UUID) -> UserRead | None:
+    async def get_active_by_id(self, id_: UUID) -> UserData | None:
         user = self.users.get(id_)
         if user is None or user.deleted_at is not None or not user.is_active:
             return None
-        return to_user_read(user)
+        return to_user_data(user)
 
-    async def get_all(self) -> Sequence[UserRead]:
-        return [
-            to_user_read(user)
-            for user in self.users.values()
-            if user.deleted_at is None and user.is_active
-        ]
+    async def get_active_by_username(self, username: str) -> UserData | None:
+        for user in self.users.values():
+            if user.username == username and user.deleted_at is None and user.is_active:
+                return to_user_data(user)
+        return None
 
-    async def create(self, data: UserCreate) -> UserRead:
+    async def get_any_by_id(self, id_: UUID) -> UserData | None:
+        user = self.users.get(id_)
+        if user is None:
+            return None
+        return to_user_data(user)
+
+    async def get_all_any_status(self) -> Sequence[UserData]:
+        return [to_user_data(user) for user in self.users.values()]
+
+    async def create(self, data: UserCreate) -> UserData:
         if self.create_error is not None:
             raise self.create_error
 
@@ -85,9 +130,9 @@ class InMemoryUserRepository(AbstractUserRepository):
             password_hash=data.password_hash,
         )
         self.users[created_user.id] = created_user
-        return to_user_read(created_user)
+        return to_user_data(created_user)
 
-    async def update(self, id_: UUID, data: UserUpdate) -> UserRead | None:
+    async def update(self, id_: UUID, data: UserUpdate) -> UserData | None:
         if self.update_error is not None:
             raise self.update_error
 
@@ -101,7 +146,23 @@ class InMemoryUserRepository(AbstractUserRepository):
 
         updated_user = user.model_copy(update=data.model_dump(exclude_unset=True))
         self.users[id_] = updated_user
-        return to_user_read(updated_user)
+        return to_user_data(updated_user)
+
+    async def update_admin(self, id_: UUID, data: UserAdminUpdate) -> UserData | None:
+        if self.update_error is not None:
+            raise self.update_error
+
+        user = self.users.get(id_)
+        if user is None or user.deleted_at is not None:
+            return None
+        if data.username is not None:
+            self._ensure_unique_username(data.username, exclude_user_id=id_)
+        if data.email is not None:
+            self._ensure_unique_email(data.email, exclude_user_id=id_)
+
+        updated_user = user.model_copy(update=data.model_dump(exclude_unset=True))
+        self.users[id_] = updated_user
+        return to_user_data(updated_user)
 
     async def soft_delete(self, user_id: UserId) -> bool:
         user = self.users.get(user_id)
@@ -121,18 +182,6 @@ class InMemoryUserRepository(AbstractUserRepository):
         )
         self.users[user_id] = deleted_user
         return True
-
-    async def get_by_username(self, username: str) -> UserRead | None:
-        for user in self.users.values():
-            if user.username == username and user.deleted_at is None and user.is_active:
-                return to_user_read(user)
-        return None
-
-    async def get_auth_by_username(self, username: str) -> UserAuthRead | None:
-        for user in self.users.values():
-            if user.username == username and user.deleted_at is None and user.is_active:
-                return user
-        return None
 
     async def touch_last_login(self, user_id: UserId) -> bool:
         user = self.users.get(user_id)

@@ -10,7 +10,7 @@ from app.db.repositories import (
     UsernameAlreadyExistsError,
     UserRepository,
 )
-from app.domain.schemas import UserAuthRead, UserCreate, UserId, UserUpdate
+from app.domain.schemas import UserAdminUpdate, UserCreate, UserData, UserId, UserUpdate
 
 pytestmark = pytest.mark.anyio
 
@@ -37,19 +37,21 @@ async def create_user(
     )
 
 
-async def seed_user(
+async def seed_user(  # noqa: PLR0913
     session: AsyncSession,
     *,
     user_id: UUID,
     username: str,
     email: str,
     password_hash: str = DEFAULT_PASSWORD_HASH,
+    is_superuser: bool = False,
 ) -> User:
     user = User(
         id=user_id,
         username=username,
         email=email,
         password_hash=password_hash,
+        is_superuser=is_superuser,
         is_active=True,
         created_at=CREATED_AT,
         updated_at=CREATED_AT,
@@ -75,7 +77,7 @@ async def test_create_persists_user_and_returns_read_model(repository: UserRepos
         )
     )
 
-    persisted_user = await repository.get_by_id(created_user.id)
+    persisted_user = await repository.get_active_by_id(created_user.id)
 
     assert persisted_user == created_user
     assert created_user.username == "new.user"
@@ -116,13 +118,13 @@ async def test_create_maps_email_uniqueness_violation(repository: UserRepository
         )
 
 
-async def test_get_by_id_returns_none_for_missing_user(repository: UserRepository) -> None:
-    user = await repository.get_by_id(MISSING_USER_ID)
+async def test_get_active_by_id_returns_none_for_missing_user(repository: UserRepository) -> None:
+    user = await repository.get_active_by_id(MISSING_USER_ID)
 
     assert user is None
 
 
-async def test_get_all_returns_users_sorted_by_username_then_id(
+async def test_get_all_any_status_returns_users_sorted_by_username_then_id(
     db_session: AsyncSession,
     repository: UserRepository,
 ) -> None:
@@ -139,12 +141,12 @@ async def test_get_all_returns_users_sorted_by_username_then_id(
         email="alpha@example.com",
     )
 
-    users = await repository.get_all()
+    users = await repository.get_all_any_status()
 
     assert [user.id for user in users] == [first_user.id, second_user.id]
 
 
-async def test_get_by_username_returns_matching_user(
+async def test_get_active_by_username_returns_matching_user(
     db_session: AsyncSession,
     repository: UserRepository,
 ) -> None:
@@ -155,14 +157,14 @@ async def test_get_by_username_returns_matching_user(
         email="first@example.com",
     )
 
-    found_user = await repository.get_by_username(user.username)
+    found_user = await repository.get_active_by_username(user.username)
 
     assert found_user is not None
     assert found_user.id == user.id
-    assert found_user.email == user.email
+    assert found_user.username == user.username
 
 
-async def test_get_auth_by_username_returns_auth_projection(
+async def test_get_active_by_username_returns_full_user_data(
     db_session: AsyncSession,
     repository: UserRepository,
 ) -> None:
@@ -174,13 +176,14 @@ async def test_get_auth_by_username_returns_auth_projection(
         password_hash="stored-password-hash",
     )
 
-    auth_user = await repository.get_auth_by_username(user.username)
+    found_user = await repository.get_active_by_username(user.username)
 
-    assert auth_user == UserAuthRead(
+    assert found_user == UserData(
         id=UserId(user.id),
         username=user.username,
         email=user.email,
         password_hash="stored-password-hash",
+        is_superuser=False,
         is_active=True,
         created_at=CREATED_AT,
         updated_at=CREATED_AT,
@@ -205,7 +208,7 @@ async def test_update_persists_changed_fields(
         UserUpdate(username="updated.user", email="updated@example.com"),
     )
 
-    reloaded_user = await repository.get_by_id(UserId(user.id))
+    reloaded_user = await repository.get_active_by_id(UserId(user.id))
 
     assert updated_user == reloaded_user
     assert updated_user is not None
@@ -260,7 +263,7 @@ async def test_delete_removes_existing_user(
     deleted = await repository.soft_delete(UserId(user.id))
 
     assert deleted is True
-    assert await repository.get_by_id(UserId(user.id)) is None
+    assert await repository.get_active_by_id(UserId(user.id)) is None
     soft_deleted_user = await db_session.get(User, user.id)
     assert soft_deleted_user is not None
     assert soft_deleted_user.deleted_at is not None
@@ -299,7 +302,7 @@ async def test_create_allows_reuse_of_username_and_email_after_soft_delete(
     assert recreated_user.email == "first@example.com"
 
 
-async def test_get_by_id_returns_none_for_soft_deleted_user(
+async def test_get_active_by_id_returns_none_for_soft_deleted_user(
     db_session: AsyncSession,
     repository: UserRepository,
 ) -> None:
@@ -311,7 +314,7 @@ async def test_get_by_id_returns_none_for_soft_deleted_user(
     )
     await repository.soft_delete(UserId(user.id))
 
-    auth_user = await repository.get_by_id(UserId(user.id))
+    auth_user = await repository.get_active_by_id(UserId(user.id))
 
     assert auth_user is None
 
@@ -330,6 +333,68 @@ async def test_touch_last_login_updates_last_login_at(
     updated = await repository.touch_last_login(UserId(user.id))
 
     assert updated is True
-    reloaded_user = await repository.get_by_id(UserId(user.id))
+    reloaded_user = await repository.get_active_by_id(UserId(user.id))
     assert reloaded_user is not None
     assert reloaded_user.last_login_at is not None
+
+
+async def test_get_any_by_id_returns_soft_deleted_user(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+    await repository.soft_delete(UserId(user.id))
+
+    found_user = await repository.get_any_by_id(UserId(user.id))
+
+    assert found_user is not None
+    assert found_user.deleted_at is not None
+
+
+async def test_get_all_any_status_includes_soft_deleted_users(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    first_user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+    second_user = await seed_user(
+        db_session,
+        user_id=SECOND_USER_ID,
+        username="second.user",
+        email="second@example.com",
+    )
+    await repository.soft_delete(UserId(second_user.id))
+
+    users = await repository.get_all_any_status()
+
+    assert [user.id for user in users] == [second_user.id, first_user.id]
+    assert users[0].deleted_at is not None
+
+
+async def test_update_admin_returns_none_for_soft_deleted_user(
+    db_session: AsyncSession,
+    repository: UserRepository,
+) -> None:
+    user = await seed_user(
+        db_session,
+        user_id=FIRST_USER_ID,
+        username="first.user",
+        email="first@example.com",
+    )
+    await repository.soft_delete(UserId(user.id))
+
+    updated_user = await repository.update_admin(
+        UserId(user.id),
+        UserAdminUpdate(username="updated.user"),
+    )
+
+    assert updated_user is None

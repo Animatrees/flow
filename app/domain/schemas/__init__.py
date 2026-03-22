@@ -16,7 +16,16 @@ from app.domain.schemas.project import (
     ProjectUpdate,
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
-from app.domain.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.schemas.user import (
+    UserAdminRead,
+    UserAdminUpdate,
+    UserAuthRead,
+    UserCreate,
+    UserData,
+    UserPublicRead,
+    UserSelfRead,
+    UserUpdate,
+)
 
 __all__ = [
     "DocumentConfirmUpload",
@@ -35,9 +44,13 @@ __all__ = [
     "ProjectUpdate",
     "RegisterRequest",
     "UploadIntentResponse",
+    "UserAdminRead",
+    "UserAdminUpdate",
     "UserAuthRead",
     "UserCreate",
+    "UserData",
     "UserId",
-    "UserRead",
+    "UserPublicRead",
+    "UserSelfRead",
     "UserUpdate",
 ]

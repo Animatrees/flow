@@ -4,6 +4,7 @@ from app.core.config import AuthJWT
 from app.services import (
     AbstractProjectRepository,
     AbstractUserRepository,
+    AdminUserService,
     AuthService,
     JWTService,
     ProjectService,
@@ -25,8 +26,17 @@ class ServiceProvider(Provider):
     def provide_user_service(
         self,
         repo: AbstractUserRepository,
+        lifecycle_service: UserLifecycleService,
     ) -> UserService:
-        return UserService(repo)
+        return UserService(repo, lifecycle_service)
+
+    @provide(scope=Scope.REQUEST)
+    def provide_admin_user_service(
+        self,
+        repo: AbstractUserRepository,
+        lifecycle_service: UserLifecycleService,
+    ) -> AdminUserService:
+        return AdminUserService(repo, lifecycle_service)
 
     @provide(scope=Scope.REQUEST)
     def provide_user_lifecycle_service(

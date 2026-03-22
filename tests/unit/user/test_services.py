@@ -4,9 +4,17 @@ from uuid import UUID
 
 import pytest
 
-from app.domain.schemas import ProjectId, UserAuthRead, UserCreate, UserId, UserUpdate
+from app.domain.schemas import (
+    ProjectId,
+    UserAdminUpdate,
+    UserAuthRead,
+    UserCreate,
+    UserId,
+    UserUpdate,
+)
 from app.domain.schemas.project import ProjectCreateWithOwner, ProjectMemberRead, ProjectStatus
 from app.services import (
+    AdminUserService,
     EmailAlreadyExistsError,
     PermissionDeniedError,
     UserLifecycleService,
@@ -14,13 +22,12 @@ from app.services import (
     UserNotFoundError,
     UserService,
 )
-from tests.unit.fakes.project_repository import (
-    InMemoryProjectRepository,
-    build_project_read,
-)
+from tests.unit.fakes.project_repository import InMemoryProjectRepository, build_project_read
 from tests.unit.fakes.user_repository import (
     InMemoryUserRepository,
-    to_user_read,
+    to_user_admin_read,
+    to_user_public_read,
+    to_user_self_read,
 )
 from tests.unit.fakes.user_repository import (
     build_user_auth_read as make_user_auth_read,
@@ -55,6 +62,18 @@ def second_user() -> UserAuthRead:
 
 
 @pytest.fixture
+def admin_user() -> UserAuthRead:
+    return make_user_auth_read(
+        user_id=UserId(UUID("33333333-3333-3333-3333-333333333333")),
+        username="admin.user",
+        email="admin@example.com",
+        password_hash="hashed-password",
+        created_at=CREATED_AT,
+        is_superuser=True,
+    )
+
+
+@pytest.fixture
 def user_repository(
     existing_user: UserAuthRead, second_user: UserAuthRead
 ) -> InMemoryUserRepository:
@@ -65,13 +84,24 @@ def user_repository(
 
 
 @pytest.fixture
-def user_service(user_repository: InMemoryUserRepository) -> UserService:
-    return UserService(user_repository)
+def user_lifecycle_service(user_repository: InMemoryUserRepository) -> UserLifecycleService:
+    return UserLifecycleService(user_repository, InMemoryProjectRepository())
 
 
 @pytest.fixture
-def user_lifecycle_service(user_repository: InMemoryUserRepository) -> UserLifecycleService:
-    return UserLifecycleService(user_repository, InMemoryProjectRepository())
+def user_service(
+    user_repository: InMemoryUserRepository,
+    user_lifecycle_service: UserLifecycleService,
+) -> UserService:
+    return UserService(user_repository, user_lifecycle_service)
+
+
+@pytest.fixture
+def admin_user_service(
+    user_repository: InMemoryUserRepository,
+    user_lifecycle_service: UserLifecycleService,
+) -> AdminUserService:
+    return AdminUserService(user_repository, user_lifecycle_service)
 
 
 @pytest.mark.anyio
@@ -110,45 +140,45 @@ async def test_user_service_create_propagates_username_conflict(
 
 
 @pytest.mark.anyio
-async def test_user_service_get_by_id_returns_user(
+async def test_user_service_get_self_by_id_returns_user(
     user_service: UserService,
     existing_user: UserAuthRead,
 ) -> None:
-    user = await user_service.get_by_id(existing_user.id)
+    user = await user_service.get_self_by_id(existing_user.id)
 
-    assert user == to_user_read(existing_user)
+    assert user == to_user_self_read(existing_user)
 
 
 @pytest.mark.anyio
-async def test_user_service_get_by_id_raises_for_missing_user(
+async def test_user_service_get_self_by_id_raises_for_missing_user(
     user_service: UserService,
 ) -> None:
     with pytest.raises(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_service.get_by_id(UserId(MISSING_USER_ID))
+        await user_service.get_self_by_id(UserId(MISSING_USER_ID))
 
 
 @pytest.mark.anyio
-async def test_user_service_get_by_username_returns_user(
+async def test_user_service_get_public_by_username_returns_user(
     user_service: UserService,
     existing_user: UserAuthRead,
 ) -> None:
-    user = await user_service.get_by_username(existing_user.username)
+    user = await user_service.get_public_by_username(existing_user.username)
 
-    assert user == to_user_read(existing_user)
+    assert user == to_user_public_read(existing_user)
 
 
 @pytest.mark.anyio
-async def test_user_service_get_by_username_raises_for_missing_user(
+async def test_user_service_get_public_by_username_raises_for_missing_user(
     user_service: UserService,
 ) -> None:
     with pytest.raises(
         UserNotFoundError,
         match=re.escape("User with username 'missing.user' was not found."),
     ):
-        await user_service.get_by_username("missing.user")
+        await user_service.get_public_by_username("missing.user")
 
 
 @pytest.mark.anyio
@@ -162,25 +192,46 @@ async def test_user_service_get_auth_user_by_username_returns_auth_user(
 
 
 @pytest.mark.anyio
-async def test_user_service_get_all_returns_all_users(
+async def test_user_service_get_public_by_id_returns_public_user(
     user_service: UserService,
     existing_user: UserAuthRead,
-    second_user: UserAuthRead,
 ) -> None:
-    users = await user_service.get_all()
+    user = await user_service.get_public_by_id(existing_user.id)
 
-    assert users == [to_user_read(existing_user), to_user_read(second_user)]
+    assert user == to_user_public_read(existing_user)
 
 
 @pytest.mark.anyio
-async def test_user_service_update_returns_updated_user(
+async def test_admin_user_service_get_all_returns_all_users(
+    admin_user_service: AdminUserService,
+    admin_user: UserAuthRead,
+    existing_user: UserAuthRead,
+    second_user: UserAuthRead,
+) -> None:
+    users = await admin_user_service.get_all(admin_user)
+
+    assert users == [to_user_admin_read(existing_user), to_user_admin_read(second_user)]
+
+
+@pytest.mark.anyio
+async def test_admin_user_service_get_all_raises_for_non_admin(
+    admin_user_service: AdminUserService,
+    existing_user: UserAuthRead,
+) -> None:
+    with pytest.raises(
+        PermissionDeniedError,
+        match=re.escape("You do not have sufficient permissions to perform this action."),
+    ):
+        await admin_user_service.get_all(existing_user)
+
+
+@pytest.mark.anyio
+async def test_user_service_update_self_returns_updated_user(
     user_service: UserService,
     existing_user: UserAuthRead,
 ) -> None:
-    updated_user = await user_service.update(
-        to_user_read(existing_user),
-        existing_user.id,
-        UserUpdate(username="updated.user"),
+    updated_user = await user_service.update_self(
+        existing_user.id, UserUpdate(username="updated.user")
     )
 
     assert updated_user.id == existing_user.id
@@ -200,62 +251,96 @@ async def test_user_service_update_propagates_email_conflict(
         EmailAlreadyExistsError,
         match=re.escape("Email is already taken."),
     ):
-        await user_service.update(
-            to_user_read(existing_user),
-            existing_user.id,
-            UserUpdate(email="updated@example.com"),
-        )
+        await user_service.update_self(existing_user.id, UserUpdate(email="updated@example.com"))
 
 
 @pytest.mark.anyio
 async def test_user_service_update_raises_for_missing_user(
     user_service: UserService,
 ) -> None:
-    missing_current_user = to_user_read(
-        make_user_auth_read(
-            user_id=MISSING_USER_ID,
-            username="missing.user",
-            email="missing@example.com",
-            password_hash="hashed-password",
-            created_at=CREATED_AT,
-        )
-    )
-
     with pytest.raises(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_service.update(
-            missing_current_user,
-            MISSING_USER_ID,
-            UserUpdate(username="updated.user"),
-        )
+        await user_service.update_self(MISSING_USER_ID, UserUpdate(username="updated.user"))
 
 
 @pytest.mark.anyio
-async def test_user_service_update_raises_for_other_user(
+async def test_user_service_delete_self_removes_existing_user(
     user_service: UserService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    await user_service.delete_self(FIRST_USER_ID)
+
+    with pytest.raises(
+        UserNotFoundError,
+        match=re.escape(f"User with id '{FIRST_USER_ID}' was not found."),
+    ):
+        await user_service.get_self_by_id(FIRST_USER_ID)
+
+    assert user_repository.users[FIRST_USER_ID].deleted_at is not None
+
+
+@pytest.mark.anyio
+async def test_admin_user_service_get_by_id_returns_admin_view(
+    admin_user_service: AdminUserService,
+    admin_user: UserAuthRead,
     existing_user: UserAuthRead,
-    second_user: UserAuthRead,
+) -> None:
+    user = await admin_user_service.get_by_id(admin_user, existing_user.id)
+
+    assert user == to_user_admin_read(existing_user)
+
+
+@pytest.mark.anyio
+async def test_admin_user_service_update_returns_updated_user(
+    admin_user_service: AdminUserService,
+    admin_user: UserAuthRead,
+    existing_user: UserAuthRead,
+) -> None:
+    updated_user = await admin_user_service.update(
+        admin_user,
+        existing_user.id,
+        UserAdminUpdate(is_superuser=True, is_active=False),
+    )
+
+    assert updated_user.is_superuser is True
+    assert updated_user.is_active is False
+
+
+@pytest.mark.anyio
+async def test_admin_user_service_update_raises_for_non_admin(
+    admin_user_service: AdminUserService,
+    existing_user: UserAuthRead,
 ) -> None:
     with pytest.raises(
         PermissionDeniedError,
         match=re.escape("You do not have sufficient permissions to perform this action."),
     ):
-        await user_service.update(
-            to_user_read(existing_user),
-            second_user.id,
-            UserUpdate(username="updated.user"),
+        await admin_user_service.update(
+            existing_user,
+            SECOND_USER_ID,
+            UserAdminUpdate(is_active=False),
         )
+
+
+@pytest.mark.anyio
+async def test_admin_user_service_delete_removes_existing_user(
+    admin_user_service: AdminUserService,
+    admin_user: UserAuthRead,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    await admin_user_service.delete(admin_user, SECOND_USER_ID)
+
+    assert user_repository.users[SECOND_USER_ID].deleted_at is not None
 
 
 @pytest.mark.anyio
 async def test_user_lifecycle_service_delete_account_removes_existing_user(
     user_lifecycle_service: UserLifecycleService,
     user_repository: InMemoryUserRepository,
-    existing_user: UserAuthRead,
 ) -> None:
-    result = await user_lifecycle_service.delete_account(to_user_read(existing_user), FIRST_USER_ID)
+    result = await user_lifecycle_service.delete_account(FIRST_USER_ID)
 
     assert result is None
 
@@ -263,7 +348,7 @@ async def test_user_lifecycle_service_delete_account_removes_existing_user(
         UserNotFoundError,
         match=re.escape(f"User with id '{FIRST_USER_ID}' was not found."),
     ):
-        await UserService(user_repository).get_by_id(FIRST_USER_ID)
+        await UserService(user_repository, user_lifecycle_service).get_self_by_id(FIRST_USER_ID)
 
     deleted_user = user_repository.users[FIRST_USER_ID]
     assert deleted_user.deleted_at is not None
@@ -276,34 +361,11 @@ async def test_user_lifecycle_service_delete_account_removes_existing_user(
 async def test_user_lifecycle_service_delete_account_raises_for_missing_user(
     user_lifecycle_service: UserLifecycleService,
 ) -> None:
-    missing_current_user = to_user_read(
-        make_user_auth_read(
-            user_id=MISSING_USER_ID,
-            username="missing.user",
-            email="missing@example.com",
-            password_hash="hashed-password",
-            created_at=CREATED_AT,
-        )
-    )
-
     with pytest.raises(
         UserNotFoundError,
         match=re.escape(f"User with id '{MISSING_USER_ID}' was not found."),
     ):
-        await user_lifecycle_service.delete_account(missing_current_user, MISSING_USER_ID)
-
-
-@pytest.mark.anyio
-async def test_user_lifecycle_service_delete_account_raises_for_other_user(
-    user_lifecycle_service: UserLifecycleService,
-    existing_user: UserAuthRead,
-    second_user: UserAuthRead,
-) -> None:
-    with pytest.raises(
-        PermissionDeniedError,
-        match=re.escape("You do not have sufficient permissions to perform this action."),
-    ):
-        await user_lifecycle_service.delete_account(to_user_read(existing_user), second_user.id)
+        await user_lifecycle_service.delete_account(MISSING_USER_ID)
 
 
 @pytest.mark.anyio
@@ -349,7 +411,7 @@ async def test_user_lifecycle_service_delete_account_removes_owned_projects_and_
         project_repository,
     )
 
-    await user_lifecycle_service.delete_account(to_user_read(existing_user), existing_user.id)
+    await user_lifecycle_service.delete_account(existing_user.id)
 
     assert project_repository.projects == {}
     assert existing_user.id not in project_repository.members.get(

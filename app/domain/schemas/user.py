@@ -51,26 +51,47 @@ class UserUpdate(BaseModel):
     email: LowerEmail | None = None
 
 
-class UserRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class UserAdminUpdate(UserUpdate):
+    model_config = ConfigDict(strict=True, frozen=True)
 
-    id: UserId
-    username: str
-    email: str
-    created_at: datetime
-    updated_at: datetime
-    last_login_at: datetime | None
+    is_superuser: bool | None = None
+    is_active: bool | None = None
 
 
-class UserAuthRead(BaseModel):
+class UserData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UserId
     username: str
     email: str
     password_hash: str
+    is_superuser: bool
     is_active: bool
     created_at: datetime
     updated_at: datetime
     last_login_at: datetime | None
     deleted_at: datetime | None
+
+
+class UserPublicRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UserId
+    username: str
+    last_login_at: datetime | None
+
+
+class UserSelfRead(UserPublicRead):
+    email: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserAdminRead(UserSelfRead):
+    is_superuser: bool
+    is_active: bool
+    deleted_at: datetime | None
+
+
+class UserAuthRead(UserAdminRead):
+    password_hash: str

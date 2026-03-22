@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.core.config import Settings
 
+from .admin_users import router as admin_users_router
 from .auth import router as auth_router
 from .health_check import router
 from .projects import router as projects_router
@@ -19,6 +20,11 @@ def init_routes(app: FastAPI, config: Settings) -> None:
         router=users_router,
         prefix=f"{prefix}/users",
         tags=["Users"],
+    )
+    app.include_router(
+        router=admin_users_router,
+        prefix=f"{prefix}/admin/users",
+        tags=["Admin Users"],
     )
     app.include_router(
         router=projects_router,

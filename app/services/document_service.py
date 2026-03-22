@@ -15,7 +15,7 @@ from app.domain.schemas.document import (
     UploadIntentResponse,
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId
-from app.domain.schemas.user import UserRead
+from app.domain.schemas.user import UserAuthRead
 from app.domain.storage import AbstractFileStorage
 from app.services.exceptions import (
     DocumentNotFoundError,
@@ -49,7 +49,7 @@ class DocumentService:
 
     async def initiate_upload(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project_id: ProjectId,
         data: DocumentCreate,
     ) -> UploadIntentResponse:
@@ -71,7 +71,7 @@ class DocumentService:
 
     async def confirm_upload(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project_id: ProjectId,
         data: DocumentConfirmUpload,
     ) -> DocumentRead:
@@ -102,19 +102,19 @@ class DocumentService:
             await self._delete_file_safely(data.storage_key)
             raise
 
-    async def get_by_id(self, current_user: UserRead, document_id: DocumentId) -> DocumentRead:
+    async def get_by_id(self, current_user: UserAuthRead, document_id: DocumentId) -> DocumentRead:
         document = await self._get_document(document_id)
         await self._ensure_project_access(current_user, document.project_id)
         return document
 
-    async def get_download_url(self, current_user: UserRead, document_id: DocumentId) -> str:
+    async def get_download_url(self, current_user: UserAuthRead, document_id: DocumentId) -> str:
         document = await self._get_document(document_id)
         await self._ensure_project_access(current_user, document.project_id)
         return await self.file_storage.generate_presigned_get_url(document.storage_key)
 
     async def get_all_for_project(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         project_id: ProjectId,
     ) -> Sequence[DocumentRead]:
         await self._ensure_project_access(current_user, project_id)
@@ -122,7 +122,7 @@ class DocumentService:
 
     async def update(
         self,
-        current_user: UserRead,
+        current_user: UserAuthRead,
         document_id: DocumentId,
         data: DocumentUpdate,
     ) -> DocumentRead:
@@ -135,7 +135,7 @@ class DocumentService:
             raise DocumentNotFoundError(msg)
         return updated_document
 
-    async def delete(self, current_user: UserRead, document_id: DocumentId) -> None:
+    async def delete(self, current_user: UserAuthRead, document_id: DocumentId) -> None:
         document = await self._get_document(document_id)
         await self._ensure_delete_access(current_user, document)
 
@@ -153,7 +153,9 @@ class DocumentService:
             raise DocumentNotFoundError(msg)
         return document
 
-    async def _ensure_project_access(self, current_user: UserRead, project_id: ProjectId) -> None:
+    async def _ensure_project_access(
+        self, current_user: UserAuthRead, project_id: ProjectId
+    ) -> None:
         project = await self.project_repo.get_by_id(project_id)
         if project is None:
             msg = f"Project with id '{project_id}' was not found."
@@ -168,7 +170,7 @@ class DocumentService:
         raise ProjectAccessDeniedError
 
     @staticmethod
-    def _is_owner(current_user: UserRead, project: ProjectRead) -> bool:
+    def _is_owner(current_user: UserAuthRead, project: ProjectRead) -> bool:
         return current_user.id == project.owner_id
 
     @staticmethod
@@ -212,7 +214,9 @@ class DocumentService:
             raise DocumentTooLargeError(msg)
         return size_bytes
 
-    async def _ensure_delete_access(self, current_user: UserRead, document: DocumentRead) -> None:
+    async def _ensure_delete_access(
+        self, current_user: UserAuthRead, document: DocumentRead
+    ) -> None:
         project = await self.project_repo.get_by_id(document.project_id)
         if project is None:
             msg = f"Project with id '{document.project_id}' was not found."

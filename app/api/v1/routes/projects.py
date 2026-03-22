@@ -11,7 +11,7 @@ from app.domain.schemas import (
     ProjectMemberRead,
     ProjectRead,
     ProjectUpdate,
-    UserRead,
+    UserAuthRead,
 )
 from app.domain.schemas.user import Username
 from app.services import ProjectService, UserService
@@ -29,7 +29,7 @@ router = APIRouter(
 async def create_project(
     data: ProjectCreate,
     project_service: FromDishka[ProjectService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> ProjectRead:
     return await project_service.create(current_user, data)
 
@@ -40,7 +40,7 @@ async def create_project(
 )
 async def get_projects(
     project_service: FromDishka[ProjectService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> list[ProjectRead]:
     return list(await project_service.get_all_for_user(current_user))
 
@@ -52,7 +52,7 @@ async def get_projects(
 async def get_project_by_id(
     project_id: ProjectId,
     project_service: FromDishka[ProjectService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> ProjectRead:
     return await project_service.get_by_id(current_user, project_id)
 
@@ -65,7 +65,7 @@ async def update_project(
     project_id: ProjectId,
     data: ProjectUpdate,
     project_service: FromDishka[ProjectService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> ProjectRead:
     return await project_service.update(current_user, project_id, data)
 
@@ -77,7 +77,7 @@ async def update_project(
 async def delete_project(
     project_id: ProjectId,
     project_service: FromDishka[ProjectService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> Response:
     await project_service.delete(current_user, project_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -92,7 +92,7 @@ async def add_project_member(
     user: Annotated[Username, Query()],
     project_service: FromDishka[ProjectService],
     user_service: FromDishka[UserService],
-    current_user: Annotated[UserRead, Depends(get_current_user)],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
 ) -> ProjectMemberRead:
-    member_user = await user_service.get_by_username(user)
+    member_user = await user_service.get_public_by_username(user)
     return await project_service.add_member(current_user, project_id, member_user.id)

@@ -5,6 +5,7 @@ from app.domain.repositories import (
 )
 from app.domain.repositories.project_repository import AbstractProjectRepository
 from app.domain.storage import AbstractFileStorage, StoredObjectMetadata
+from app.services.admin_user_service import AdminUserService
 from app.services.auth_service import AuthService
 from app.services.document_service import DocumentService
 from app.services.exceptions import (
@@ -42,6 +43,7 @@ __all__ = [
     "AbstractRepository",
     "AbstractUserRepository",
     "AccessDeniedError",
+    "AdminUserService",
     "AuthService",
     "ConflictError",
     "DocumentNotFoundError",

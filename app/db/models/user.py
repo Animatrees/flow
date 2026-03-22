@@ -13,6 +13,7 @@ class User(Base, UUIDPkMixin, TimestampMixin):
     username: Mapped[str] = mapped_column(String(50), unique=True)
     email: Mapped[str] = mapped_column(String(320), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    is_superuser: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

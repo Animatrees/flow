@@ -2,33 +2,37 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from app.domain.schemas.type_ids import UserId
-from app.domain.schemas.user import UserAuthRead, UserCreate, UserRead, UserUpdate
+from app.domain.schemas.user import UserAdminUpdate, UserCreate, UserData, UserUpdate
 
 
 class AbstractUserRepository(ABC):
     @abstractmethod
-    async def get_by_id(self, id_: UserId) -> UserRead | None:
+    async def get_active_by_id(self, id_: UserId) -> UserData | None:
         """Return an active, non-deleted user by id or None if it does not exist."""
 
     @abstractmethod
-    async def get_all(self) -> Sequence[UserRead]:
-        """Return all active, non-deleted users."""
-
-    @abstractmethod
-    async def create(self, data: UserCreate) -> UserRead:
-        """Create and return a user."""
-
-    @abstractmethod
-    async def update(self, id_: UserId, data: UserUpdate) -> UserRead | None:
-        """Update and return a user or None if it does not exist."""
-
-    @abstractmethod
-    async def get_by_username(self, username: str) -> UserRead | None:
+    async def get_active_by_username(self, username: str) -> UserData | None:
         """Return an active, non-deleted user by username or None if it does not exist."""
 
     @abstractmethod
-    async def get_auth_by_username(self, username: str) -> UserAuthRead | None:
-        """Return auth data for a user by username or None if it does not exist."""
+    async def get_any_by_id(self, id_: UserId) -> UserData | None:
+        """Return any user by id, including inactive or soft-deleted records."""
+
+    @abstractmethod
+    async def get_all_any_status(self) -> Sequence[UserData]:
+        """Return all users, including inactive or soft-deleted records."""
+
+    @abstractmethod
+    async def create(self, data: UserCreate) -> UserData:
+        """Create and return a user."""
+
+    @abstractmethod
+    async def update(self, id_: UserId, data: UserUpdate) -> UserData | None:
+        """Update and return an active, non-deleted user or None if it does not exist."""
+
+    @abstractmethod
+    async def update_admin(self, id_: UserId, data: UserAdminUpdate) -> UserData | None:
+        """Update and return a non-deleted user or None if it does not exist."""
 
     @abstractmethod
     async def touch_last_login(self, user_id: UserId) -> bool:

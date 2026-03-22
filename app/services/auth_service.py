@@ -1,5 +1,5 @@
 from app.domain.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.domain.schemas.user import UserCreate, UserRead
+from app.domain.schemas.user import UserCreate, UserSelfRead
 from app.services.exceptions import InvalidCredentialsError
 from app.services.jwt_service import JWTService
 from app.services.security import hash_password, verify_password
@@ -11,7 +11,7 @@ class AuthService:
         self.user_service = user_service
         self.jwt_service = jwt_service
 
-    async def register(self, data: RegisterRequest) -> UserRead:
+    async def register(self, data: RegisterRequest) -> UserSelfRead:
         password_hash = hash_password(data.password)
         user_create = UserCreate(
             username=data.username,

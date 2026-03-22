@@ -5,6 +5,7 @@ from app.services import (
     AuthService,
     InvalidCredentialsError,
     InvalidTokenError,
+    UserLifecycleService,
     UserService,
     hash_password,
 )
@@ -16,6 +17,7 @@ from app.services import (
 )
 from app.services.jwt_service import JWTService
 from tests.fixtures.jwt import TEST_AUTH_JWT
+from tests.unit.fakes.project_repository import InMemoryProjectRepository
 from tests.unit.fakes.user_repository import InMemoryUserRepository
 
 
@@ -26,7 +28,8 @@ def user_repository() -> InMemoryUserRepository:
 
 @pytest.fixture
 def user_service(user_repository: InMemoryUserRepository) -> UserService:
-    return UserService(user_repository)
+    lifecycle_service = UserLifecycleService(user_repository, InMemoryProjectRepository())
+    return UserService(user_repository, lifecycle_service)
 
 
 @pytest.fixture
@@ -57,7 +60,7 @@ async def test_auth_service_register_creates_user(
 ) -> None:
     user = await auth_service.register(register_request)
 
-    stored_user = await user_repository.get_auth_by_username(register_request.username)
+    stored_user = await user_repository.get_active_by_username(register_request.username)
 
     assert user.username == register_request.username
     assert stored_user is not None
@@ -108,7 +111,7 @@ async def test_auth_service_authenticate_returns_token(
     )
 
     payload = jwt_service.decode_access_token(token_response.access_token)
-    auth_user = await user_repository.get_auth_by_username("valid.user")
+    auth_user = await user_repository.get_active_by_username("valid.user")
 
     assert token_response.token_type == "Bearer"
     assert token_response.exp > token_response.iat
