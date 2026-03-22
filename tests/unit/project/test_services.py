@@ -9,6 +9,7 @@ from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectId,
     ProjectMemberRead,
+    ProjectMemberRole,
     ProjectRead,
     ProjectStatus,
     ProjectUpdate,
@@ -110,7 +111,11 @@ def project_repository(
     return InMemoryProjectRepository(
         projects=[existing_project, second_project],
         members=[
-            ProjectMemberRead(project_id=ProjectId(PROJECT_ID), user_id=UserId(PARTICIPANT_ID)),
+            ProjectMemberRead(
+                project_id=ProjectId(PROJECT_ID),
+                user_id=UserId(PARTICIPANT_ID),
+                role=ProjectMemberRole.MEMBER,
+            ),
         ],
         id_factory=lambda: UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
     )
@@ -178,6 +183,13 @@ async def test_project_service_create_returns_created_project(
     assert project.start_date == date(2026, 3, 1)
     assert project.end_date == date(2026, 9, 1)
     assert project.status == ProjectStatus.OPEN
+    assert await project_service.repo.get_members(project.id) == [
+        ProjectMemberRead(
+            project_id=project.id,
+            user_id=owner.id,
+            role=ProjectMemberRole.OWNER,
+        )
+    ]
 
 
 @pytest.mark.anyio
@@ -246,6 +258,63 @@ async def test_project_service_get_by_id_raises_for_outsider(
         match=re.escape("You do not have access to this project."),
     ):
         await project_service.get_by_id(outsider, existing_project.id)
+
+
+@pytest.mark.anyio
+async def test_project_service_get_members_returns_members_for_owner(
+    project_service: ProjectService,
+    owner: UserRead,
+    existing_project: ProjectRead,
+) -> None:
+    members = await project_service.get_members(owner, existing_project.id)
+
+    assert members == [
+        ProjectMemberRead(
+            project_id=existing_project.id,
+            user_id=PARTICIPANT_ID,
+            role=ProjectMemberRole.MEMBER,
+        ),
+        ProjectMemberRead(
+            project_id=existing_project.id,
+            user_id=OWNER_ID,
+            role=ProjectMemberRole.OWNER,
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_project_service_get_members_returns_members_for_participant(
+    project_service: ProjectService,
+    participant: UserRead,
+    existing_project: ProjectRead,
+) -> None:
+    members = await project_service.get_members(participant, existing_project.id)
+
+    assert members == [
+        ProjectMemberRead(
+            project_id=existing_project.id,
+            user_id=PARTICIPANT_ID,
+            role=ProjectMemberRole.MEMBER,
+        ),
+        ProjectMemberRead(
+            project_id=existing_project.id,
+            user_id=OWNER_ID,
+            role=ProjectMemberRole.OWNER,
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_project_service_get_members_raises_for_outsider(
+    project_service: ProjectService,
+    outsider: UserRead,
+    existing_project: ProjectRead,
+) -> None:
+    with pytest.raises(
+        ProjectAccessDeniedError,
+        match=re.escape("You do not have access to this project."),
+    ):
+        await project_service.get_members(outsider, existing_project.id)
 
 
 @pytest.mark.anyio
@@ -382,7 +451,11 @@ async def test_project_service_add_member_allows_owner(
 ) -> None:
     member = await project_service.add_member(owner, existing_project.id, outsider.id)
 
-    assert member == ProjectMemberRead(project_id=existing_project.id, user_id=outsider.id)
+    assert member == ProjectMemberRead(
+        project_id=existing_project.id,
+        user_id=outsider.id,
+        role=ProjectMemberRole.MEMBER,
+    )
 
 
 @pytest.mark.anyio
@@ -421,7 +494,7 @@ async def test_project_service_add_member_raises_for_existing_participant(
 ) -> None:
     with pytest.raises(
         ProjectMemberAlreadyExistsError,
-        match=re.escape("User is already a participant of this project."),
+        match=re.escape("User is already a member of this project."),
     ):
         await project_service.add_member(owner, existing_project.id, participant.id)
 
@@ -434,7 +507,7 @@ async def test_project_service_add_member_raises_for_owner(
 ) -> None:
     with pytest.raises(
         ProjectMemberAlreadyExistsError,
-        match=re.escape("User is already a participant of this project."),
+        match=re.escape("User is already a member of this project."),
     ):
         await project_service.add_member(owner, existing_project.id, owner.id)
 
@@ -447,13 +520,11 @@ async def test_project_service_add_member_maps_repository_conflict(
     existing_project: ProjectRead,
     outsider: UserRead,
 ) -> None:
-    project_repository.add_member_error = ConflictError(
-        "User is already a participant of this project."
-    )
+    project_repository.add_member_error = ConflictError("User is already a member of this project.")
 
     with pytest.raises(
         ProjectMemberAlreadyExistsError,
-        match=re.escape("User is already a participant of this project."),
+        match=re.escape("User is already a member of this project."),
     ):
         await project_service.add_member(owner, existing_project.id, outsider.id)
 

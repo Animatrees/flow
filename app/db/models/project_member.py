@@ -1,10 +1,15 @@
 import uuid
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import Enum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
 from app.db.models import Base
+from app.domain.schemas import ProjectMemberRole
+
+
+def project_member_role_values(_: type[ProjectMemberRole]) -> list[str]:
+    return [role.value for role in ProjectMemberRole]
 
 
 class ProjectMember(Base):
@@ -20,4 +25,13 @@ class ProjectMember(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
         index=True,
+    )
+    role: Mapped[ProjectMemberRole] = mapped_column(
+        Enum(
+            ProjectMemberRole,
+            name="project_member_role",
+            create_constraint=True,
+            validate_strings=True,
+            values_callable=project_member_role_values,
+        )
     )

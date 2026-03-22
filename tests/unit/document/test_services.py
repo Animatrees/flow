@@ -12,6 +12,7 @@ from app.domain.schemas import (
     DocumentUpdate,
     ProjectCreateWithOwner,
     ProjectMemberRead,
+    ProjectMemberRole,
     ProjectRead,
     ProjectStatus,
 )
@@ -119,7 +120,11 @@ def project_repository(existing_project: ProjectRead) -> InMemoryProjectReposito
     return InMemoryProjectRepository(
         projects=[existing_project],
         members=[
-            ProjectMemberRead(project_id=PROJECT_ID, user_id=PARTICIPANT_ID),
+            ProjectMemberRead(
+                project_id=PROJECT_ID,
+                user_id=PARTICIPANT_ID,
+                role=ProjectMemberRole.MEMBER,
+            ),
         ],
     )
 

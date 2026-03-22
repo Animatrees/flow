@@ -8,7 +8,9 @@ from app.db.models import Base
 from app.db.models.mixins import TimestampMixin, UUIDPkMixin
 from app.domain.schemas import ProjectStatus
 
-PROJECT_STATUS_VALUES = tuple(status.value for status in ProjectStatus)
+
+def project_status_values(_: type[ProjectStatus]) -> list[str]:
+    return [status.value for status in ProjectStatus]
 
 
 class Project(Base, UUIDPkMixin, TimestampMixin):
@@ -28,7 +30,7 @@ class Project(Base, UUIDPkMixin, TimestampMixin):
             name="project_status",
             create_constraint=True,
             validate_strings=True,
-            values_callable=lambda _enum_cls: list(PROJECT_STATUS_VALUES),
+            values_callable=project_status_values,
         )
     )
 

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import delete, exists, or_, select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.domain.repositories.project_repository import AbstractProjectRepository
 from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
+    ProjectMemberRole,
     ProjectRead,
     ProjectUpdate,
 )
@@ -43,6 +44,22 @@ class ProjectRepository(AbstractProjectRepository):
         except IntegrityError as err:
             raise self._map_project_integrity_error(err) from err
 
+        owner_membership = ProjectMember(
+            project_id=project.id,
+            user_id=project.owner_id,
+            role=ProjectMemberRole.OWNER,
+        )
+        self.session.add(owner_membership)
+
+        try:
+            await self.session.flush()
+        except IntegrityError as err:
+            raise self._map_member_integrity_error(
+                err,
+                ProjectId(project.id),
+                UserId(project.owner_id),
+            ) from err
+
         return ProjectRead.model_validate(project)
 
     async def update(self, id_: ProjectId, data: ProjectUpdate) -> ProjectRead | None:
@@ -70,33 +87,36 @@ class ProjectRepository(AbstractProjectRepository):
         return True
 
     async def get_all_for_user(self, user_id: UserId) -> Sequence[ProjectRead]:
-        membership_exists = exists(
-            select(ProjectMember.project_id).where(
-                ProjectMember.project_id == Project.id,
-                ProjectMember.user_id == user_id,
-            )
-        )
         statement = (
             select(Project)
-            .where(or_(Project.owner_id == user_id, membership_exists))
+            .join(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(ProjectMember.user_id == user_id)
             .order_by(Project.created_at, Project.id)
         )
         projects = await self.session.scalars(statement)
         return [ProjectRead.model_validate(project) for project in projects]
 
-    async def is_member(self, project_id: ProjectId, user_id: UserId) -> bool:
-        statement = select(
-            exists().where(
-                ProjectMember.project_id == project_id,
-                ProjectMember.user_id == user_id,
-            )
+    async def has_access_to_project(self, project_id: ProjectId, user_id: UserId) -> bool:
+        statement = select(ProjectMember.project_id).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id,
         )
-        return bool(await self.session.scalar(statement))
+        return await self.session.scalar(statement) is not None
+
+    async def get_members(self, project_id: ProjectId) -> Sequence[ProjectMemberRead]:
+        memberships = await self.session.scalars(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .order_by(ProjectMember.role, ProjectMember.user_id)
+        )
+        return [ProjectMemberRead.model_validate(member) for member in memberships]
 
     async def add_member(self, project_id: ProjectId, user_id: UserId) -> ProjectMemberRead:
-        await self._ensure_project_exists(project_id)
-
-        member = ProjectMember(project_id=project_id, user_id=user_id)
+        member = ProjectMember(
+            project_id=project_id,
+            user_id=user_id,
+            role=ProjectMemberRole.MEMBER,
+        )
         self.session.add(member)
 
         try:
@@ -123,11 +143,6 @@ class ProjectRepository(AbstractProjectRepository):
         await self.session.execute(delete(ProjectMember).where(ProjectMember.user_id == user_id))
         await self.session.flush()
 
-    async def _ensure_project_exists(self, project_id: ProjectId) -> None:
-        if await self.session.get(Project, project_id) is None:
-            msg = f"Project with id '{project_id}' was not found."
-            raise ProjectNotFoundError(msg)
-
     @staticmethod
     def _map_project_integrity_error(err: IntegrityError) -> RepositoryError:
         error_text = str(err.orig).lower()
@@ -145,11 +160,12 @@ class ProjectRepository(AbstractProjectRepository):
         error_text = str(err.orig).lower()
 
         if "project_members" in error_text and "unique" in error_text:
-            return ConflictError("User is already a participant of this project.")
+            return ConflictError("User is already a member of this project.")
 
         if (
             "project_members.project_id" in error_text
             or "fk_project_members_project_id_projects" in error_text
+            or "foreign key constraint failed" in error_text
         ):
             msg = f"Project with id '{project_id}' was not found."
             return ProjectNotFoundError(msg)

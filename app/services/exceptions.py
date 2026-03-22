@@ -129,10 +129,7 @@ class EmailAlreadyExistsError(ConflictError):
 
 
 class ProjectMemberAlreadyExistsError(ConflictError):
-    """Raised when the user is already a participant of the project."""
+    """Raised when the user already has project access."""
 
-    def __init__(
-        self,
-        message: str = "User is already a participant of this project.",
-    ) -> None:
+    def __init__(self, message: str = "User is already a member of this project.") -> None:
         super().__init__(message)

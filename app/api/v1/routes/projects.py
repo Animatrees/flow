@@ -57,6 +57,18 @@ async def get_project_by_id(
     return await project_service.get_by_id(current_user, project_id)
 
 
+@router.get(
+    "/{project_id}/members",
+    status_code=status.HTTP_200_OK,
+)
+async def get_project_members(
+    project_id: ProjectId,
+    project_service: FromDishka[ProjectService],
+    current_user: Annotated[UserAuthRead, Depends(get_current_user)],
+) -> list[ProjectMemberRead]:
+    return list(await project_service.get_members(current_user, project_id))
+
+
 @router.patch(
     "/{project_id}",
     status_code=status.HTTP_200_OK,

@@ -164,7 +164,7 @@ class DocumentService:
         if self._is_owner(current_user, project):
             return
 
-        if await self.project_repo.is_member(project_id, current_user.id):
+        if await self.project_repo.has_access_to_project(project_id, current_user.id):
             return
 
         raise ProjectAccessDeniedError
@@ -225,7 +225,7 @@ class DocumentService:
         if self._is_owner(current_user, project):
             return
 
-        if await self.project_repo.is_member(document.project_id, current_user.id):
+        if await self.project_repo.has_access_to_project(document.project_id, current_user.id):
             if document.uploaded_by == current_user.id:
                 return
             raise PermissionDeniedError

@@ -44,11 +44,14 @@ def create_test_engine(
 
     @event.listens_for(engine.sync_engine, "connect")
     def register_sqlite_functions(dbapi_connection: Any, _: Any) -> None:
-        dbapi_connection.run_async(
-            lambda connection: connection.create_function("char_length", 1, len)
-        )
+        dbapi_connection.run_async(_configure_sqlite_connection)
 
     return engine
+
+
+async def _configure_sqlite_connection(connection: Any) -> None:
+    await connection.create_function("char_length", 1, len)
+    await connection.execute("PRAGMA foreign_keys=ON")
 
 
 class ApiTestDatabaseProvider(Provider):

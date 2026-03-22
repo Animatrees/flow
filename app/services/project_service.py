@@ -52,6 +52,15 @@ class ProjectService:
     async def get_all_for_user(self, current_user: UserAuthRead) -> Sequence[ProjectRead]:
         return await self.repo.get_all_for_user(current_user.id)
 
+    async def get_members(
+        self,
+        current_user: UserAuthRead,
+        project_id: ProjectId,
+    ) -> Sequence[ProjectMemberRead]:
+        project = await self._get_project(project_id)
+        await self._ensure_project_access(current_user, project)
+        return await self.repo.get_members(project_id)
+
     async def update(
         self,
         current_user: UserAuthRead,
@@ -89,8 +98,6 @@ class ProjectService:
         project = await self._get_project(project_id)
         await self._ensure_owner_access(current_user, project)
 
-        if user_id == project.owner_id:
-            raise ProjectMemberAlreadyExistsError
         if await self.user_repo.get_active_by_id(user_id) is None:
             msg = f"User with id '{user_id}' was not found."
             raise UserNotFoundError(msg)
@@ -112,10 +119,7 @@ class ProjectService:
         current_user: UserAuthRead,
         project: ProjectRead,
     ) -> None:
-        if current_user.id == project.owner_id:
-            return
-
-        if await self.repo.is_member(project.id, current_user.id):
+        if await self.repo.has_access_to_project(project.id, current_user.id):
             return
 
         raise ProjectAccessDeniedError
@@ -128,7 +132,7 @@ class ProjectService:
         if current_user.id == project.owner_id:
             return
 
-        if await self.repo.is_member(project.id, current_user.id):
+        if await self.repo.has_access_to_project(project.id, current_user.id):
             raise PermissionDeniedError
 
         raise ProjectAccessDeniedError

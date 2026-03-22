@@ -12,7 +12,12 @@ from app.domain.schemas import (
     UserId,
     UserUpdate,
 )
-from app.domain.schemas.project import ProjectCreateWithOwner, ProjectMemberRead, ProjectStatus
+from app.domain.schemas.project import (
+    ProjectCreateWithOwner,
+    ProjectMemberRead,
+    ProjectMemberRole,
+    ProjectStatus,
+)
 from app.services import (
     AdminUserService,
     EmailAlreadyExistsError,
@@ -403,6 +408,7 @@ async def test_user_lifecycle_service_delete_account_removes_owned_projects_and_
             ProjectMemberRead(
                 project_id=ProjectId(UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")),
                 user_id=existing_user.id,
+                role=ProjectMemberRole.MEMBER,
             )
         ],
     )
@@ -416,5 +422,5 @@ async def test_user_lifecycle_service_delete_account_removes_owned_projects_and_
     assert project_repository.projects == {}
     assert existing_user.id not in project_repository.members.get(
         UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-        set(),
+        {},
     )

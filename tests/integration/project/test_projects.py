@@ -229,6 +229,116 @@ async def test_get_project_by_id_returns_forbidden_for_outsider(client: httpx.As
     assert response.json() == {"message": "You do not have access to this project."}
 
 
+async def test_get_project_members_returns_members_for_owner(client: httpx.AsyncClient) -> None:
+    owner_headers = await authorized_headers(
+        client,
+        username="owner",
+        email="owner@example.com",
+    )
+    await authorized_headers(
+        client,
+        username="participant",
+        email="participant@example.com",
+    )
+    create_response = await create_project(client, headers=owner_headers)
+    membership_response = await client.post(
+        f"/api/v1/projects/{create_response.json()['id']}/members",
+        params={"user": "participant"},
+        headers=owner_headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/projects/{create_response.json()['id']}/members",
+        headers=owner_headers,
+    )
+
+    assert create_response.status_code == 201
+    assert membership_response.status_code == 201
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json() == [
+        {
+            "project_id": create_response.json()["id"],
+            "user_id": membership_response.json()["user_id"],
+            "role": "member",
+        },
+        {
+            "project_id": create_response.json()["id"],
+            "user_id": create_response.json()["owner_id"],
+            "role": "owner",
+        },
+    ]
+
+
+async def test_get_project_members_returns_members_for_participant(
+    client: httpx.AsyncClient,
+) -> None:
+    owner_headers = await authorized_headers(
+        client,
+        username="owner",
+        email="owner@example.com",
+    )
+    participant_headers = await authorized_headers(
+        client,
+        username="participant",
+        email="participant@example.com",
+    )
+    create_response = await create_project(client, headers=owner_headers)
+    membership_response = await client.post(
+        f"/api/v1/projects/{create_response.json()['id']}/members",
+        params={"user": "participant"},
+        headers=owner_headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/projects/{create_response.json()['id']}/members",
+        headers=participant_headers,
+    )
+
+    assert create_response.status_code == 201
+    assert membership_response.status_code == 201
+    assert response.status_code == 200
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json() == [
+        {
+            "project_id": create_response.json()["id"],
+            "user_id": membership_response.json()["user_id"],
+            "role": "member",
+        },
+        {
+            "project_id": create_response.json()["id"],
+            "user_id": create_response.json()["owner_id"],
+            "role": "owner",
+        },
+    ]
+
+
+async def test_get_project_members_returns_forbidden_for_outsider(
+    client: httpx.AsyncClient,
+) -> None:
+    owner_headers = await authorized_headers(
+        client,
+        username="owner",
+        email="owner@example.com",
+    )
+    outsider_headers = await authorized_headers(
+        client,
+        username="outsider",
+        email="outsider@example.com",
+    )
+    create_response = await create_project(client, headers=owner_headers)
+
+    response = await client.get(
+        f"/api/v1/projects/{create_response.json()['id']}/members",
+        headers=outsider_headers,
+    )
+
+    assert create_response.status_code == 201
+    assert response.status_code == 403
+    assert response.headers["content-type"] == JSON_CONTENT_TYPE
+    assert response.json() == {"message": "You do not have access to this project."}
+
+
 async def test_update_project_returns_updated_project_for_participant(
     client: httpx.AsyncClient,
 ) -> None:
@@ -345,6 +455,7 @@ async def test_add_project_member_returns_created_membership(
     assert response.status_code == 201
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json()["project_id"] == create_response.json()["id"]
+    assert response.json()["role"] == "member"
 
 
 async def test_add_project_member_returns_conflict_for_duplicate_participant(
@@ -377,7 +488,7 @@ async def test_add_project_member_returns_conflict_for_duplicate_participant(
     assert first_membership_response.status_code == 201
     assert response.status_code == 409
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
-    assert response.json() == {"message": "User is already a participant of this project."}
+    assert response.json() == {"message": "User is already a member of this project."}
 
 
 async def test_add_project_member_returns_not_found_for_unknown_user(

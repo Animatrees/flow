@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from app.domain.schemas import (
     ProjectCreateWithOwner,
     ProjectMemberRead,
+    ProjectMemberRole,
     ProjectRead,
     ProjectUpdate,
 )
@@ -40,9 +41,11 @@ class InMemoryProjectRepository(AbstractProjectRepository):
         self.projects: dict[UUID, ProjectRead] = {
             project.id: project for project in (projects or [])
         }
-        self.members: dict[UUID, set[UUID]] = {}
+        self.members: dict[UUID, dict[UUID, ProjectMemberRole]] = {}
+        for project in self.projects.values():
+            self.members.setdefault(project.id, {})[project.owner_id] = ProjectMemberRole.OWNER
         for member in members or []:
-            self.members.setdefault(member.project_id, set()).add(member.user_id)
+            self.members.setdefault(member.project_id, {})[member.user_id] = member.role
 
         self.id_factory = id_factory or uuid4
         self.add_member_error: Exception | None = None
@@ -65,7 +68,9 @@ class InMemoryProjectRepository(AbstractProjectRepository):
             created_at=datetime.now(UTC),
         )
         self.projects[created_project.id] = created_project
-        self.members.setdefault(created_project.id, set())
+        self.members.setdefault(created_project.id, {})[created_project.owner_id] = (
+            ProjectMemberRole.OWNER
+        )
         return created_project
 
     async def update(self, id_: UUID, data: ProjectUpdate) -> ProjectRead | None:
@@ -86,29 +91,40 @@ class InMemoryProjectRepository(AbstractProjectRepository):
         return [
             project
             for project in self.projects.values()
-            if project.owner_id == user_id or user_id in self.members.get(project.id, set())
+            if user_id in self.members.get(project.id, {})
         ]
 
     async def get_members(self, project_id: UUID) -> Sequence[ProjectMemberRead]:
         return [
-            ProjectMemberRead(project_id=ProjectId(project_id), user_id=UserId(user_id))
-            for user_id in self.members.get(project_id, set())
+            ProjectMemberRead(
+                project_id=ProjectId(project_id),
+                user_id=UserId(user_id),
+                role=role,
+            )
+            for user_id, role in sorted(
+                self.members.get(project_id, {}).items(),
+                key=lambda item: (item[1].value, item[0]),
+            )
         ]
 
-    async def is_member(self, project_id: UUID, user_id: UUID) -> bool:
-        return user_id in self.members.get(project_id, set())
+    async def has_access_to_project(self, project_id: UUID, user_id: UUID) -> bool:
+        return user_id in self.members.get(project_id, {})
 
     async def add_member(self, project_id: UUID, user_id: UUID) -> ProjectMemberRead:
         if self.add_member_error is not None:
             raise self.add_member_error
 
-        project_members = self.members.setdefault(project_id, set())
+        project_members = self.members.setdefault(project_id, {})
         if user_id in project_members:
-            msg = "User is already a participant of this project."
+            msg = "User is already a member of this project."
             raise ConflictError(msg)
 
-        project_members.add(user_id)
-        return ProjectMemberRead(project_id=ProjectId(project_id), user_id=UserId(user_id))
+        project_members[user_id] = ProjectMemberRole.MEMBER
+        return ProjectMemberRead(
+            project_id=ProjectId(project_id),
+            user_id=UserId(user_id),
+            role=ProjectMemberRole.MEMBER,
+        )
 
     async def delete_all_owned_by_user(self, user_id: UserId) -> None:
         owned_project_ids = [
@@ -123,4 +139,4 @@ class InMemoryProjectRepository(AbstractProjectRepository):
     async def remove_memberships_for_user(self, user_id: UserId) -> None:
         for members in self.members.values():
             if user_id in members:
-                members.remove(user_id)
+                members.pop(user_id)

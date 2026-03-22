@@ -8,10 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Project, ProjectMember, User
 from app.db.repositories import (
     ConflictError,
-    ProjectNotFoundError,
     ProjectRepository,
+    RepositoryError,
 )
-from app.domain.schemas import ProjectCreateWithOwner, ProjectStatus, ProjectUpdate, UserId
+from app.domain.schemas import (
+    ProjectCreateWithOwner,
+    ProjectMemberRead,
+    ProjectMemberRole,
+    ProjectStatus,
+    ProjectUpdate,
+    UserId,
+)
 from app.domain.schemas.type_ids import ProjectId
 
 pytestmark = pytest.mark.anyio
@@ -63,6 +70,14 @@ async def seed_project(
     )
     session.add(project)
     await session.flush()
+    session.add(
+        ProjectMember(
+            project_id=project_id,
+            user_id=data.owner_id,
+            role=ProjectMemberRole.OWNER,
+        )
+    )
+    await session.flush()
     return project
 
 
@@ -71,8 +86,9 @@ async def seed_member(
     *,
     project_id: UUID,
     user_id: UUID,
+    role: ProjectMemberRole = ProjectMemberRole.MEMBER,
 ) -> ProjectMember:
-    member = ProjectMember(project_id=project_id, user_id=user_id)
+    member = ProjectMember(project_id=project_id, user_id=user_id, role=role)
     session.add(member)
     await session.flush()
     return member
@@ -110,6 +126,14 @@ async def test_create_persists_project_and_returns_read_model(
     assert persisted_project == created_project
     assert created_project.owner_id == OWNER_ID
     assert created_project.status == ProjectStatus.OPEN
+    assert await repository.has_access_to_project(created_project.id, OWNER_ID) is True
+    assert await repository.get_members(created_project.id) == [
+        ProjectMemberRead(
+            project_id=created_project.id,
+            user_id=OWNER_ID,
+            role=ProjectMemberRole.OWNER,
+        )
+    ]
 
 
 async def test_get_by_id_returns_none_for_missing_project(repository: ProjectRepository) -> None:
@@ -327,8 +351,8 @@ async def test_remove_memberships_for_user_removes_all_participations(
     await seed_member(db_session, project_id=SECOND_PROJECT_ID, user_id=PARTICIPANT_ID)
 
     await repository.remove_memberships_for_user(PARTICIPANT_ID)
-    assert await repository.is_member(FIRST_PROJECT_ID, PARTICIPANT_ID) is False
-    assert await repository.is_member(SECOND_PROJECT_ID, PARTICIPANT_ID) is False
+    assert await repository.has_access_to_project(FIRST_PROJECT_ID, PARTICIPANT_ID) is False
+    assert await repository.has_access_to_project(SECOND_PROJECT_ID, PARTICIPANT_ID) is False
 
 
 async def test_get_all_for_user_returns_owned_and_member_projects(
@@ -390,7 +414,7 @@ async def test_get_all_for_user_returns_owned_and_member_projects(
     assert [project.id for project in projects] == [owned_project.id, member_project.id]
 
 
-async def test_is_member_returns_true_for_project_participant(
+async def test_has_access_to_project_returns_true_for_owner_and_member(
     repository: ProjectRepository,
     db_session: AsyncSession,
 ) -> None:
@@ -424,8 +448,8 @@ async def test_is_member_returns_true_for_project_participant(
         user_id=PARTICIPANT_ID,
     )
 
-    assert await repository.is_member(FIRST_PROJECT_ID, PARTICIPANT_ID) is True
-    assert await repository.is_member(FIRST_PROJECT_ID, OWNER_ID) is False
+    assert await repository.has_access_to_project(FIRST_PROJECT_ID, PARTICIPANT_ID) is True
+    assert await repository.has_access_to_project(FIRST_PROJECT_ID, OWNER_ID) is True
 
 
 async def test_add_member_creates_membership(
@@ -461,7 +485,8 @@ async def test_add_member_creates_membership(
 
     assert member.project_id == FIRST_PROJECT_ID
     assert member.user_id == PARTICIPANT_ID
-    assert await repository.is_member(FIRST_PROJECT_ID, PARTICIPANT_ID) is True
+    assert member.role is ProjectMemberRole.MEMBER
+    assert await repository.has_access_to_project(FIRST_PROJECT_ID, PARTICIPANT_ID) is True
 
 
 async def test_add_member_raises_for_duplicate_membership(
@@ -500,9 +525,53 @@ async def test_add_member_raises_for_duplicate_membership(
 
     with pytest.raises(
         ConflictError,
-        match=re.escape("User is already a participant of this project."),
+        match=re.escape("User is already a member of this project."),
     ):
         await repository.add_member(FIRST_PROJECT_ID, PARTICIPANT_ID)
+
+
+async def test_get_members_returns_owner_and_members_with_roles(
+    repository: ProjectRepository,
+    db_session: AsyncSession,
+) -> None:
+    await seed_user(
+        db_session,
+        user_id=OWNER_ID,
+        username="owner",
+        email="owner@example.com",
+    )
+    await seed_user(
+        db_session,
+        user_id=PARTICIPANT_ID,
+        username="participant",
+        email="participant@example.com",
+    )
+    created_project = await repository.create(
+        ProjectCreateWithOwner(
+            name="Flow",
+            description="",
+            owner_id=OWNER_ID,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            status=ProjectStatus.OPEN,
+        )
+    )
+    await repository.add_member(created_project.id, PARTICIPANT_ID)
+
+    members = await repository.get_members(created_project.id)
+
+    assert members == [
+        ProjectMemberRead(
+            project_id=created_project.id,
+            user_id=PARTICIPANT_ID,
+            role=ProjectMemberRole.MEMBER,
+        ),
+        ProjectMemberRead(
+            project_id=created_project.id,
+            user_id=OWNER_ID,
+            role=ProjectMemberRole.OWNER,
+        ),
+    ]
 
 
 async def test_add_member_raises_for_missing_project(
@@ -516,8 +585,5 @@ async def test_add_member_raises_for_missing_project(
         email="participant@example.com",
     )
 
-    with pytest.raises(
-        ProjectNotFoundError,
-        match=f"Project with id '{MISSING_PROJECT_ID}' was not found.",
-    ):
+    with pytest.raises(RepositoryError):
         await repository.add_member(MISSING_PROJECT_ID, PARTICIPANT_ID)

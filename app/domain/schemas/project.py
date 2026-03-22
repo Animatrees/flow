@@ -16,6 +16,11 @@ class ProjectStatus(StrEnum):
     DONE = "done"
 
 
+class ProjectMemberRole(StrEnum):
+    OWNER = "owner"
+    MEMBER = "member"
+
+
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -58,3 +63,4 @@ class ProjectMemberRead(BaseModel):
 
     project_id: ProjectId
     user_id: UserId
+    role: ProjectMemberRole

@@ -19,12 +19,16 @@ class AbstractProjectRepository(
         """Return all projects accessible to the given user."""
 
     @abstractmethod
-    async def is_member(self, project_id: ProjectId, user_id: UserId) -> bool:
-        """Return whether the user is a participant of the given project."""
+    async def has_access_to_project(self, project_id: ProjectId, user_id: UserId) -> bool:
+        """Return whether the user has project access via a membership row."""
+
+    @abstractmethod
+    async def get_members(self, project_id: ProjectId) -> Sequence[ProjectMemberRead]:
+        """Return all project memberships for the given project."""
 
     @abstractmethod
     async def add_member(self, project_id: ProjectId, user_id: UserId) -> ProjectMemberRead:
-        """Add a participant to the given project."""
+        """Add a non-owner member to the given project."""
 
     @abstractmethod
     async def delete_all_owned_by_user(self, user_id: UserId) -> None:
