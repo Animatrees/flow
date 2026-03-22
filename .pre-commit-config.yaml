@@ -24,3 +24,11 @@ repos:
         types: [python]
         pass_filenames: false
         always_run: true
+
+      - id: tach
+        name: tach check
+        entry: uv run tach check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true

@@ -40,7 +40,7 @@ Core business functionality is not implemented yet; the repository currently con
 ### Install Dependencies
 
 ```bash
-uv sync --all-groups
+uv sync
 ```
 
 ### Run Locally
@@ -70,9 +70,9 @@ make test
 ## Project Structure
 
 ```text
-src/       # Application source code
+app/       # Application source code
 tests/     # Unit and other tests
-main.py    # FastAPI app entry point (includes /health)
+app/main.py    # FastAPI app entry point (includes /health)
 ```
 
 ## Roadmap (Initial)

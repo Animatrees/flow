@@ -3,7 +3,7 @@ target-version = "py312"
 line-length = 100
 
 [lint.isort]
-known-first-party = ["src"]
+known-first-party = ["app"]
 
 [format]
 quote-style = "double"
@@ -19,6 +19,8 @@ ignore = [
     "COM812",
     "ISC001",
     "D1",
+    "D203",
+    "D213",
     "TD",
     "FIX",
     "ERA",
@@ -27,9 +29,11 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-
+"alembic/*" = ["INP001", "D205"]
 "tests/**/*" = [
     "S101",
+    "S105",
+    "S106",
     "ANN",
     "PLR2004",
     "D",

@@ -1,0 +1,66 @@
+from datetime import date, datetime
+from enum import StrEnum
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+from app.domain.schemas.type_ids import ProjectId, UserId
+
+type TrimmedString = Annotated[str, StringConstraints(strip_whitespace=True)]
+type NonEmptyString = Annotated[TrimmedString, StringConstraints(min_length=1)]
+
+
+class ProjectStatus(StrEnum):
+    OPEN = "open"
+    WIP = "wip"
+    DONE = "done"
+
+
+class ProjectMemberRole(StrEnum):
+    OWNER = "owner"
+    MEMBER = "member"
+
+
+class ProjectCreate(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: NonEmptyString
+    description: TrimmedString = ""
+    start_date: date
+    end_date: date
+    status: ProjectStatus = ProjectStatus.OPEN
+
+
+class ProjectCreateWithOwner(ProjectCreate):
+    owner_id: UserId
+
+
+class ProjectUpdate(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: NonEmptyString | None = None
+    description: TrimmedString | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    status: ProjectStatus | None = None
+
+
+class ProjectRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: ProjectId
+    name: str
+    description: str
+    owner_id: UserId
+    start_date: date
+    end_date: date
+    status: ProjectStatus
+    created_at: datetime
+
+
+class ProjectMemberRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    project_id: ProjectId
+    user_id: UserId
+    role: ProjectMemberRole
