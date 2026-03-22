@@ -13,9 +13,10 @@ __pycache__/
 
 *.log
 
+.pytest_cache
 .ruff_cache/
-.mypy_cache/
 .ty_cache/
+.uv-cache/
 
 .coverage
 htmlcov/
@@ -23,6 +24,7 @@ htmlcov/
 coverage.xml
 
 .env
+.env.docker
 Description
 AGENTS.md
 /secrets/
