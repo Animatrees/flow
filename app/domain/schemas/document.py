@@ -30,7 +30,7 @@ class UploadIntentResponse(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True)
 
     upload_url: str
-    storage_key: NonEmptyString
+    upload_token: NonEmptyString
 
 
 class DocumentConfirmUpload(BaseModel):
@@ -38,7 +38,7 @@ class DocumentConfirmUpload(BaseModel):
 
     filename: NonEmptyString
     content_type: ContentType
-    storage_key: NonEmptyString
+    upload_token: NonEmptyString
     checksum: FileChecksum | None = None
 
 

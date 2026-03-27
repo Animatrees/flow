@@ -1,8 +1,10 @@
 import logging
 from collections.abc import Sequence
+from uuid import UUID
 
 from uuid_extensions import uuid7
 
+from app.core.config import JWTConfig
 from app.domain.repositories import AbstractDocumentRepository
 from app.domain.repositories.project_repository import AbstractProjectRepository
 from app.domain.schemas import ProjectRead
@@ -14,18 +16,21 @@ from app.domain.schemas.document import (
     DocumentUpdate,
     UploadIntentResponse,
 )
-from app.domain.schemas.type_ids import DocumentId, ProjectId
+from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
 from app.domain.schemas.user import UserAuthRead
 from app.domain.storage import AbstractFileStorage
 from app.services.exceptions import (
     DocumentNotFoundError,
     DocumentStorageError,
     DocumentTooLargeError,
+    InvalidTokenError,
+    InvalidUploadTokenError,
     PermissionDeniedError,
     ProjectAccessDeniedError,
     ProjectNotFoundError,
     UnsupportedDocumentTypeError,
 )
+from app.services.jwt_service import JWTService
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +47,14 @@ class DocumentService:
         repo: AbstractDocumentRepository,
         project_repo: AbstractProjectRepository,
         file_storage: AbstractFileStorage,
+        jwt_service: JWTService,
+        jwt_config: JWTConfig,
     ) -> None:
         self.repo = repo
         self.project_repo = project_repo
         self.file_storage = file_storage
+        self.jwt_service = jwt_service
+        self.jwt_config = jwt_config
 
     async def initiate_upload(
         self,
@@ -63,10 +72,19 @@ class DocumentService:
             content_type=data.content_type,
             max_size=MAX_DOCUMENT_SIZE_BYTES,
         )
+        upload_token = self.jwt_service.create_token(
+            {
+                "sub": storage_key,
+                "project_id": str(project_id),
+                "uploaded_by": str(current_user.id),
+                "type": "upload_intent",
+            },
+            expire_minutes=self.jwt_config.upload_token_expire_minutes,
+        ).token
 
         return UploadIntentResponse(
             upload_url=upload_url,
-            storage_key=storage_key,
+            upload_token=upload_token,
         )
 
     async def confirm_upload(
@@ -77,11 +95,15 @@ class DocumentService:
     ) -> DocumentRead:
         await self._ensure_project_access(current_user, project_id)
         self._validate_file_type(data.filename, data.content_type)
-        self._ensure_storage_key_matches_project(project_id, data.storage_key)
+        storage_key = self._decode_upload_token(
+            upload_token=data.upload_token,
+            project_id=project_id,
+            user_id=current_user.id,
+        )
 
-        stored_object = await self.file_storage.get_file_metadata(data.storage_key)
+        stored_object = await self.file_storage.get_file_metadata(storage_key)
         if stored_object is None:
-            msg = f"Uploaded document '{data.storage_key}' was not found in storage."
+            msg = f"Uploaded document '{storage_key}' was not found in storage."
             raise DocumentStorageError(msg)
 
         size_bytes = self._validate_size(stored_object.size_bytes)
@@ -94,12 +116,12 @@ class DocumentService:
                     filename=data.filename,
                     content_type=data.content_type,
                     size_bytes=size_bytes,
-                    storage_key=data.storage_key,
+                    storage_key=storage_key,
                     checksum=data.checksum,
                 )
             )
         except Exception:
-            await self._delete_file_safely(data.storage_key)
+            await self._delete_file_safely(storage_key)
             raise
 
     async def get_by_id(self, current_user: UserAuthRead, document_id: DocumentId) -> DocumentRead:
@@ -177,14 +199,46 @@ class DocumentService:
     def _build_storage_key(project_id: ProjectId) -> str:
         return f"projects/{project_id}/documents/{uuid7()}"
 
-    @staticmethod
-    def _ensure_storage_key_matches_project(project_id: ProjectId, storage_key: str) -> None:
-        expected_prefix = f"projects/{project_id}/documents/"
-        if storage_key.startswith(expected_prefix):
-            return
+    def _decode_upload_token(
+        self, upload_token: str, project_id: ProjectId, user_id: UserId
+    ) -> str:
+        try:
+            payload = self.jwt_service.decode_token(upload_token)
+        except InvalidTokenError as err:
+            raise InvalidUploadTokenError from err
 
-        msg = f"Storage key '{storage_key}' does not belong to project '{project_id}'."
-        raise DocumentStorageError(msg)
+        if payload.get("type") != "upload_intent":
+            msg = "Upload token has invalid type."
+            raise InvalidUploadTokenError(msg)
+
+        subject = payload.get("sub")
+        if not subject:
+            msg = "Upload token missing required 'sub' claim."
+            raise InvalidUploadTokenError(msg)
+
+        token_project_id = self._parse_token_uuid(payload.get("project_id"), "project_id")
+        if token_project_id != project_id:
+            msg = "Upload token does not belong to this project."
+            raise InvalidUploadTokenError(msg)
+
+        token_user_id = self._parse_token_uuid(payload.get("uploaded_by"), "uploaded_by")
+        if token_user_id != user_id:
+            msg = "Upload token does not belong to this user."
+            raise InvalidUploadTokenError(msg)
+
+        return subject
+
+    @staticmethod
+    def _parse_token_uuid(value: object, field_name: str) -> UUID:
+        if not isinstance(value, str) or not value:
+            msg = f"Upload token missing required '{field_name}' claim."
+            raise InvalidUploadTokenError(msg)
+
+        try:
+            return UUID(value)
+        except ValueError as err:
+            msg = f"Upload token has invalid '{field_name}' claim."
+            raise InvalidUploadTokenError(msg) from err
 
     @staticmethod
     def _validate_content_type(content_type: str) -> None:

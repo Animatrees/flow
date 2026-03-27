@@ -94,6 +94,16 @@ class InvalidTokenError(ServiceError):
         super().__init__(message)
 
 
+class InvalidUploadTokenError(DomainValidationError):
+    """Raised when an upload intent token is invalid."""
+
+    def __init__(
+        self,
+        message: str = "Upload token is invalid.",
+    ) -> None:
+        super().__init__(message)
+
+
 class PermissionDeniedError(AccessDeniedError):
     """Raised when the user doesn't have sufficient permissions."""
 

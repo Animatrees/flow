@@ -25,6 +25,7 @@ from app.services import (
     DocumentService,
     DocumentStorageError,
     DocumentTooLargeError,
+    InvalidUploadTokenError,
     PermissionDeniedError,
     ProjectAccessDeniedError,
     ProjectNotFoundError,
@@ -33,6 +34,8 @@ from app.services import (
     UnsupportedDocumentTypeError,
 )
 from app.services.document_service import MAX_DOCUMENT_SIZE_BYTES
+from app.services.jwt_service import JWTService
+from tests.fixtures.jwt import TEST_JWT_CONFIG
 from tests.unit.fakes.document_repository import (
     InMemoryDocumentRepository,
     build_document_read,
@@ -143,12 +146,48 @@ def file_storage() -> InMemoryFileStorage:
 
 
 @pytest.fixture
+def jwt_service() -> JWTService:
+    return JWTService(TEST_JWT_CONFIG)
+
+
+@pytest.fixture
 def document_service(
     document_repository: InMemoryDocumentRepository,
     project_repository: InMemoryProjectRepository,
     file_storage: InMemoryFileStorage,
+    jwt_service: JWTService,
 ) -> DocumentService:
-    return DocumentService(document_repository, project_repository, file_storage)
+    return DocumentService(
+        document_repository,
+        project_repository,
+        file_storage,
+        jwt_service,
+        TEST_JWT_CONFIG,
+    )
+
+
+def build_upload_token(
+    jwt_service: JWTService,
+    *,
+    claims: dict[str, str] | None = None,
+    expire_minutes: int | None = None,
+    include_sub: bool = True,
+) -> str:
+    token_claims = claims.copy() if claims is not None else {}
+    project_id = token_claims.get("project_id", str(PROJECT_ID))
+    payload: dict[str, str] = {
+        "project_id": str(PROJECT_ID),
+        "uploaded_by": str(OWNER_ID),
+        "type": "upload_intent",
+    }
+    payload.update(token_claims)
+    if include_sub:
+        payload["sub"] = payload.get("sub", f"projects/{project_id}/documents/generated-key")
+
+    return jwt_service.create_token(
+        payload,
+        expire_minutes=expire_minutes or TEST_JWT_CONFIG.upload_token_expire_minutes,
+    ).token
 
 
 @pytest.mark.anyio
@@ -156,6 +195,7 @@ async def test_document_service_initiate_upload_returns_upload_intent(
     document_service: DocumentService,
     owner: UserRead,
     file_storage: InMemoryFileStorage,
+    jwt_service: JWTService,
 ) -> None:
     upload_intent = await document_service.initiate_upload(
         owner,
@@ -168,9 +208,13 @@ async def test_document_service_initiate_upload_returns_upload_intent(
     )
 
     assert upload_intent.upload_url == file_storage.put_url
-    assert upload_intent.storage_key.startswith(f"projects/{PROJECT_ID}/documents/")
+    payload = jwt_service.decode_token(upload_intent.upload_token)
+    assert payload["sub"].startswith(f"projects/{PROJECT_ID}/documents/")
+    assert payload["project_id"] == str(PROJECT_ID)
+    assert payload["uploaded_by"] == str(owner.id)
+    assert payload["type"] == "upload_intent"
     assert file_storage.presigned_put_requests == [
-        (upload_intent.storage_key, DOCX_CONTENT_TYPE, MAX_DOCUMENT_SIZE_BYTES)
+        (payload["sub"], DOCX_CONTENT_TYPE, MAX_DOCUMENT_SIZE_BYTES)
     ]
 
 
@@ -303,6 +347,7 @@ async def test_document_service_confirm_upload_allows_filename_without_extension
     document_service: DocumentService,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
     file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=12)
@@ -313,7 +358,7 @@ async def test_document_service_confirm_upload_allows_filename_without_extension
         DocumentConfirmUpload(
             filename="flow",
             content_type=PDF_CONTENT_TYPE,
-            storage_key=storage_key,
+            upload_token=build_upload_token(jwt_service, claims={"sub": storage_key}),
         ),
     )
 
@@ -325,6 +370,7 @@ async def test_document_service_confirm_upload_returns_created_document(
     document_service: DocumentService,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
     file_storage.files[storage_key] = StoredObjectMetadata(
@@ -339,7 +385,7 @@ async def test_document_service_confirm_upload_returns_created_document(
         DocumentConfirmUpload(
             filename="flow.pdf",
             content_type=PDF_CONTENT_TYPE,
-            storage_key=storage_key,
+            upload_token=build_upload_token(jwt_service, claims={"sub": storage_key}),
         ),
     )
 
@@ -357,6 +403,7 @@ async def test_document_service_confirm_upload_returns_created_document(
 async def test_document_service_confirm_upload_raises_when_file_is_missing(
     document_service: DocumentService,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     missing_storage_key = f"projects/{PROJECT_ID}/documents/missing-key"
 
@@ -370,23 +417,41 @@ async def test_document_service_confirm_upload_raises_when_file_is_missing(
             DocumentConfirmUpload(
                 filename="flow.pdf",
                 content_type=PDF_CONTENT_TYPE,
-                storage_key=missing_storage_key,
+                upload_token=build_upload_token(
+                    jwt_service,
+                    claims={"sub": missing_storage_key},
+                ),
             ),
         )
 
 
 @pytest.mark.anyio
-async def test_document_service_confirm_upload_raises_for_foreign_project_storage_key(
+async def test_document_service_confirm_upload_raises_for_invalid_token_type(
     document_service: DocumentService,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
-    foreign_storage_key = f"projects/{MISSING_PROJECT_ID}/documents/generated-key"
+    with pytest.raises(InvalidUploadTokenError, match=re.escape("Upload token has invalid type.")):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                upload_token=build_upload_token(jwt_service, claims={"type": "access"}),
+            ),
+        )
 
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_wrong_project_token(
+    document_service: DocumentService,
+    owner: UserRead,
+    jwt_service: JWTService,
+) -> None:
     with pytest.raises(
-        DocumentStorageError,
-        match=re.escape(
-            f"Storage key '{foreign_storage_key}' does not belong to project '{PROJECT_ID}'."
-        ),
+        InvalidUploadTokenError,
+        match=re.escape("Upload token does not belong to this project."),
     ):
         await document_service.confirm_upload(
             owner,
@@ -394,7 +459,73 @@ async def test_document_service_confirm_upload_raises_for_foreign_project_storag
             DocumentConfirmUpload(
                 filename="flow.pdf",
                 content_type=PDF_CONTENT_TYPE,
-                storage_key=foreign_storage_key,
+                upload_token=build_upload_token(
+                    jwt_service,
+                    claims={"project_id": str(MISSING_PROJECT_ID)},
+                ),
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_wrong_uploading_user(
+    document_service: DocumentService,
+    owner: UserRead,
+    jwt_service: JWTService,
+) -> None:
+    with pytest.raises(
+        InvalidUploadTokenError,
+        match=re.escape("Upload token does not belong to this user."),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                upload_token=build_upload_token(
+                    jwt_service,
+                    claims={"uploaded_by": str(PARTICIPANT_ID)},
+                ),
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_missing_subject_claim(
+    document_service: DocumentService,
+    owner: UserRead,
+    jwt_service: JWTService,
+) -> None:
+    with pytest.raises(
+        InvalidUploadTokenError,
+        match=re.escape("Upload token missing required 'sub' claim."),
+    ):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                upload_token=build_upload_token(jwt_service, include_sub=False),
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_document_service_confirm_upload_raises_for_expired_upload_token(
+    document_service: DocumentService,
+    owner: UserRead,
+    jwt_service: JWTService,
+) -> None:
+    with pytest.raises(InvalidUploadTokenError, match=re.escape("Upload token is invalid.")):
+        await document_service.confirm_upload(
+            owner,
+            PROJECT_ID,
+            DocumentConfirmUpload(
+                filename="flow.pdf",
+                content_type=PDF_CONTENT_TYPE,
+                upload_token=build_upload_token(jwt_service, expire_minutes=-1),
             ),
         )
 
@@ -403,9 +534,8 @@ async def test_document_service_confirm_upload_raises_for_foreign_project_storag
 async def test_document_service_confirm_upload_raises_for_filename_extension_mismatch(
     document_service: DocumentService,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
-    storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
-
     with pytest.raises(
         UnsupportedDocumentTypeError,
         match=re.escape(
@@ -419,7 +549,7 @@ async def test_document_service_confirm_upload_raises_for_filename_extension_mis
             DocumentConfirmUpload(
                 filename="flow.docx",
                 content_type=PDF_CONTENT_TYPE,
-                storage_key=storage_key,
+                upload_token=build_upload_token(jwt_service),
             ),
         )
 
@@ -429,6 +559,7 @@ async def test_document_service_confirm_upload_raises_for_oversized_uploaded_doc
     document_service: DocumentService,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
     file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=MAX_DOCUMENT_SIZE_BYTES + 1)
@@ -445,7 +576,7 @@ async def test_document_service_confirm_upload_raises_for_oversized_uploaded_doc
             DocumentConfirmUpload(
                 filename="flow.pdf",
                 content_type=PDF_CONTENT_TYPE,
-                storage_key=storage_key,
+                upload_token=build_upload_token(jwt_service, claims={"sub": storage_key}),
             ),
         )
 
@@ -456,6 +587,7 @@ async def test_document_service_confirm_upload_deletes_file_when_metadata_create
     document_repository: InMemoryDocumentRepository,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     storage_key = f"projects/{PROJECT_ID}/documents/generated-key"
     file_storage.files[storage_key] = StoredObjectMetadata(size_bytes=12)
@@ -468,7 +600,7 @@ async def test_document_service_confirm_upload_deletes_file_when_metadata_create
             DocumentConfirmUpload(
                 filename="flow.pdf",
                 content_type=PDF_CONTENT_TYPE,
-                storage_key=storage_key,
+                upload_token=build_upload_token(jwt_service, claims={"sub": storage_key}),
             ),
         )
 
@@ -542,6 +674,7 @@ async def test_document_service_delete_allows_participant_to_remove_own_document
     project_repository: InMemoryProjectRepository,
     file_storage: InMemoryFileStorage,
     participant: UserRead,
+    jwt_service: JWTService,
 ) -> None:
     participant_document = build_document_read(
         document_id=UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
@@ -561,6 +694,8 @@ async def test_document_service_delete_allows_participant_to_remove_own_document
         document_repository,
         project_repository,
         file_storage,
+        jwt_service,
+        TEST_JWT_CONFIG,
     )
 
     await document_service.delete(participant, participant_document.id)
