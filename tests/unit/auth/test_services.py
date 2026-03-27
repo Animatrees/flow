@@ -16,7 +16,7 @@ from app.services import (
     UsernameAlreadyExistsError as ServiceUsernameAlreadyExistsError,
 )
 from app.services.jwt_service import JWTService
-from tests.fixtures.jwt import TEST_AUTH_JWT
+from tests.fixtures.jwt import TEST_JWT_CONFIG
 from tests.unit.fakes.project_repository import InMemoryProjectRepository
 from tests.unit.fakes.user_repository import InMemoryUserRepository
 
@@ -34,12 +34,12 @@ def user_service(user_repository: InMemoryUserRepository) -> UserService:
 
 @pytest.fixture
 def jwt_service() -> JWTService:
-    return JWTService(TEST_AUTH_JWT)
+    return JWTService(TEST_JWT_CONFIG)
 
 
 @pytest.fixture
 def auth_service(user_service: UserService, jwt_service: JWTService) -> AuthService:
-    return AuthService(user_service, jwt_service)
+    return AuthService(user_service, jwt_service, TEST_JWT_CONFIG)
 
 
 @pytest.fixture
@@ -110,12 +110,13 @@ async def test_auth_service_authenticate_returns_token(
         LoginRequest(username="valid.user", password=password)
     )
 
-    payload = jwt_service.decode_access_token(token_response.access_token)
+    payload = jwt_service.decode_token(token_response.access_token)
     auth_user = await user_repository.get_active_by_username("valid.user")
 
     assert token_response.token_type == "Bearer"
     assert token_response.exp > token_response.iat
     assert payload["sub"] == str(created_user.id)
+    assert payload["type"] == "access"
     assert payload["username"] == created_user.username
     assert auth_user is not None
     assert auth_user.last_login_at is not None
@@ -171,5 +172,85 @@ async def test_auth_service_authenticate_rejects_soft_deleted_user(
 def test_jwt_service_decode_access_token_rejects_invalid_token(
     jwt_service: JWTService,
 ) -> None:
-    with pytest.raises(InvalidTokenError, match="Invalid access token"):
-        jwt_service.decode_access_token("invalid-token")
+    with pytest.raises(InvalidTokenError, match="Invalid token"):
+        jwt_service.decode_token("invalid-token")
+
+
+@pytest.mark.anyio
+async def test_auth_service_get_current_user_by_token_returns_user(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    created_user = await user_repository.create(
+        UserCreate(
+            username="valid.user",
+            email="user@example.com",
+            password_hash=hash_password("StrongPass1!"),
+        )
+    )
+    token = auth_service.jwt_service.create_token(
+        {
+            "sub": str(created_user.id),
+            "username": created_user.username,
+            "type": "access",
+        },
+        expire_minutes=TEST_JWT_CONFIG.access_token_expire_minutes,
+    ).token
+
+    current_user = await auth_service.get_current_user_by_token(token)
+
+    assert current_user.id == created_user.id
+    assert current_user.username == created_user.username
+
+
+@pytest.mark.anyio
+async def test_auth_service_get_current_user_by_token_rejects_wrong_token_type(
+    auth_service: AuthService,
+    user_repository: InMemoryUserRepository,
+) -> None:
+    created_user = await user_repository.create(
+        UserCreate(
+            username="valid.user",
+            email="user@example.com",
+            password_hash=hash_password("StrongPass1!"),
+        )
+    )
+    token = auth_service.jwt_service.create_token(
+        {
+            "sub": str(created_user.id),
+            "type": "upload",
+        },
+        expire_minutes=TEST_JWT_CONFIG.upload_token_expire_minutes,
+    ).token
+
+    with pytest.raises(InvalidTokenError, match="Invalid token type"):
+        await auth_service.get_current_user_by_token(token)
+
+
+@pytest.mark.anyio
+async def test_auth_service_get_current_user_by_token_rejects_missing_subject(
+    auth_service: AuthService,
+) -> None:
+    token = auth_service.jwt_service.create_token(
+        {"type": "access"},
+        expire_minutes=TEST_JWT_CONFIG.access_token_expire_minutes,
+    ).token
+
+    with pytest.raises(InvalidTokenError, match="Token missing required 'sub' claim"):
+        await auth_service.get_current_user_by_token(token)
+
+
+@pytest.mark.anyio
+async def test_auth_service_get_current_user_by_token_rejects_invalid_subject_uuid(
+    auth_service: AuthService,
+) -> None:
+    token = auth_service.jwt_service.create_token(
+        {
+            "sub": "not-a-uuid",
+            "type": "access",
+        },
+        expire_minutes=TEST_JWT_CONFIG.access_token_expire_minutes,
+    ).token
+
+    with pytest.raises(InvalidTokenError, match="Invalid UUID in token subject"):
+        await auth_service.get_current_user_by_token(token)

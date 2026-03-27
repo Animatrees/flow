@@ -39,11 +39,12 @@ class DatabaseConfig(BaseModel):
         )
 
 
-class AuthJWT(BaseModel):
+class JWTConfig(BaseModel):
     private_key_path: Path
     public_key_path: Path
     algorithm: str = "RS256"
     access_token_expire_minutes: int = 60
+    upload_token_expire_minutes: int = 60
 
 
 class Settings(BaseSettings):
@@ -61,4 +62,4 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    auth_jwt: AuthJWT = Field(default_factory=AuthJWT)
+    jwt: JWTConfig = Field(default_factory=JWTConfig)

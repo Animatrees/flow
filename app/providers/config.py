@@ -1,6 +1,6 @@
 from dishka import Provider, Scope, provide
 
-from app.core.config import AuthJWT, DatabaseConfig, Settings
+from app.core.config import DatabaseConfig, JWTConfig, Settings
 
 
 class ConfigProvider(Provider):
@@ -17,5 +17,5 @@ class ConfigProvider(Provider):
         return self._config.db
 
     @provide(scope=Scope.APP)
-    def provide_auth_jwt_config(self) -> AuthJWT:
-        return self._config.auth_jwt
+    def provide_jwt_config(self) -> JWTConfig:
+        return self._config.jwt

@@ -4,7 +4,7 @@ import httpx
 import jwt
 import pytest
 
-from tests.fixtures.jwt import TEST_AUTH_JWT
+from tests.fixtures.jwt import TEST_JWT_CONFIG
 
 pytestmark = pytest.mark.anyio
 
@@ -82,8 +82,8 @@ async def test_login_returns_access_token(client: httpx.AsyncClient) -> None:
     body = response.json()
     payload = jwt.decode(
         body["access_token"],
-        TEST_AUTH_JWT.public_key_path.read_text(),
-        algorithms=[TEST_AUTH_JWT.algorithm],
+        TEST_JWT_CONFIG.public_key_path.read_text(),
+        algorithms=[TEST_JWT_CONFIG.algorithm],
     )
 
     assert body["token_type"] == "Bearer"
