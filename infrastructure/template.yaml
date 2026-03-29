@@ -1,0 +1,311 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Project Management App Infrastructure: Network (VPC, Subnets)'
+
+Resources:
+  MainVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: flow-prod-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: flow-prod-igw
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MainVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: flow-public-subnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags:
+        - Key: Name
+          Value: flow-public-rt
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: flow-private-subnet-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: flow-private-subnet-2
+
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "flow-docs-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Allow HTTP traffic to EC2 and Outbound traffic'
+      VpcId: !Ref MainVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: flow-ec2-sg
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Allow PostgreSQL access ONLY from EC2'
+      VpcId: !Ref MainVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: flow-rds-sg
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: EC2AppPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DocumentsBucket.Arn
+                  - !Sub "${DocumentsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod/db/password"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod/jwt/*"
+              - Effect: Allow
+                Action:
+                  - ec2:AssociateAddress
+                Resource: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Subnets for RDS in private network'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: flow-db-subnet-group
+
+  PostgresDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: flow
+      Engine: postgres
+      EngineVersion: '17'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      StorageType: gp2
+      MasterUsername: flow
+
+      MasterUserPassword: '{{resolve:ssm-secure:/prod/db/password:1}}'
+
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 0
+      DeleteAutomatedBackups: true
+      Tags:
+        - Key: Name
+          Value: flow-prod-db
+    DeletionPolicy: Snapshot
+
+  FlowEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: flow-prod-eip
+
+  FlowLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: t3.micro
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64}}'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y docker
+            systemctl enable docker
+            systemctl start docker
+            usermod -a -G docker ec2-user
+            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/instance-id)
+            aws ec2 associate-address --instance-id $INSTANCE_ID --allocation-id ${FlowEIP.AllocationId} --region ${AWS::Region}
+
+  FlowASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchTemplate:
+        LaunchTemplateId: !Ref FlowLaunchTemplate
+        Version: !GetAtt FlowLaunchTemplate.LatestVersionNumber
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      Tags:
+        - Key: Name
+          Value: flow-prod-ec2
+          PropagateAtLaunch: true
+        - Key: Role
+          Value: BackendApp
+          PropagateAtLaunch: true
+
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 1b511abead59c6ce207077c0bf0e0043b1382612
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: flow-github-actions-deploy-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !Ref GitHubOIDCProvider
+            Condition:
+              StringLike:
+                token.actions.githubusercontent.com:sub: repo:Animatrees/flow:*
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+      Policies:
+        - PolicyName: SSMDeployPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+
+Outputs:
+  VpcId:
+    Description: 'VPC ID'
+    Value: !Ref MainVPC
+    Export:
+      Name: FlowVpcId
+
+  DatabaseEndpoint:
+    Description: 'RDS PostgreSQL Endpoint URL'
+    Value: !GetAtt PostgresDB.Endpoint.Address
+    Export:
+      Name: FlowDbEndpoint
+
+  AppPublicIP:
+    Description: 'Public IP of the FastAPI Backend'
+    Value: !Ref FlowEIP
+    Export:
+      Name: FlowAppPublicIP
+
+  GitHubRoleArn:
+    Description: 'ARN of the IAM Role for GitHub Actions'
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+    Export:
+      Name: FlowGitHubRoleArn
