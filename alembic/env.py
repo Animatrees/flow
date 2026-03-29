@@ -19,7 +19,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 app_settings = Settings()
-config.set_main_option("sqlalchemy.url", app_settings.db.url.render_as_string(hide_password=False))
+db_url = app_settings.db.url.render_as_string(hide_password=False)
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 # add your model's MetaData object here
 # for 'autogenerate' support
