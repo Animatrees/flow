@@ -1,6 +1,6 @@
 from dishka import Provider, Scope, provide
 
-from app.core.config import AuthJWT
+from app.core.config import JWTConfig
 from app.services import (
     AbstractProjectRepository,
     AbstractUserRepository,
@@ -48,10 +48,13 @@ class ServiceProvider(Provider):
 
     @provide(scope=Scope.REQUEST)
     def provide_auth_service(
-        self, user_service: UserService, jwt_service: JWTService
+        self,
+        user_service: UserService,
+        jwt_service: JWTService,
+        jwt_config: JWTConfig,
     ) -> AuthService:
-        return AuthService(user_service, jwt_service)
+        return AuthService(user_service, jwt_service, jwt_config)
 
     @provide(scope=Scope.APP)
-    def provide_jwt_service(self, config: AuthJWT) -> JWTService:
+    def provide_jwt_service(self, config: JWTConfig) -> JWTService:
         return JWTService(config)

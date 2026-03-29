@@ -22,7 +22,7 @@ from app.api.v1.routes import init_routes
 from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, Settings
 from app.db.models import Base
 from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider
-from tests.fixtures.jwt import TEST_AUTH_JWT
+from tests.fixtures.jwt import TEST_JWT_CONFIG
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -145,7 +145,7 @@ async def container(tmp_path: Path) -> AsyncIterator[AsyncContainer]:
             host="localhost",
             port=5432,
         ),
-        auth_jwt=TEST_AUTH_JWT,
+        jwt=TEST_JWT_CONFIG,
     )
 
     test_container = make_async_container(
@@ -172,7 +172,7 @@ def settings() -> Settings:
             host="localhost",
             port=5432,
         ),
-        auth_jwt=TEST_AUTH_JWT,
+        jwt=TEST_JWT_CONFIG,
     )
 
 

@@ -82,3 +82,26 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: publish
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Вставь ARN роли, который мы получили на предыдущем шаге
+          role-to-assume: arn:aws:iam::885232249159:role/flow-github-actions-deploy-role
+          aws-region: eu-north-1
+
+      - name: Trigger Deployment on EC2 via AWS SSM
+        run: |
+          aws ssm send-command \
+            --targets "Key=tag:Role,Values=BackendApp" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["curl -s -O https://raw.githubusercontent.com/${{ github.repository }}/main/infrastructure/deploy.sh", "bash deploy.sh ${{ vars.DB_HOST }} ${{ github.repository }}"]' \
+            --comment "Deploying branch main"

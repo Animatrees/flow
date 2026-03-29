@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 
-from app.core.config import AuthJWT
+from app.core.config import JWTConfig
 from app.services.exceptions import InvalidTokenError
 
 
@@ -15,16 +15,15 @@ class TokenData:
 
 
 class JWTService:
-    def __init__(self, config: AuthJWT) -> None:
+    def __init__(self, config: JWTConfig) -> None:
         self.config = config
         self.private_key = config.private_key_path.read_text()
         self.public_key = config.public_key_path.read_text()
-        self.algorithm = config.algorithm
 
-    def create_access_token(self, payload: dict) -> TokenData:
+    def create_token(self, payload: dict, expire_minutes: int) -> TokenData:
         to_encode = payload.copy()
         now = datetime.now(UTC)
-        expire = now + timedelta(minutes=self.config.access_token_expire_minutes)
+        expire = now + timedelta(minutes=expire_minutes)
         to_encode.update(
             exp=expire,
             iat=now,
@@ -36,18 +35,14 @@ class JWTService:
             iat=int(now.timestamp()),
         )
 
-    def decode_access_token(self, token: str) -> dict:
+    def decode_token(self, token: str) -> dict:
         try:
             payload = jwt.decode(
                 token,
                 self.public_key,
-                algorithms=[self.algorithm],
+                algorithms=[self.config.algorithm],
             )
         except jwt.InvalidTokenError as err:
             raise InvalidTokenError from err
-
-        subject = payload.get("sub")
-        if not isinstance(subject, str) or not subject:
-            raise InvalidTokenError
 
         return payload

@@ -85,11 +85,21 @@ class DocumentStorageError(ServiceError):
 
 
 class InvalidTokenError(ServiceError):
-    """Raised when an access token is invalid."""
+    """Raised when a token is invalid."""
 
     def __init__(
         self,
-        message: str = "Invalid access token.",
+        message: str = "Invalid token",
+    ) -> None:
+        super().__init__(message)
+
+
+class InvalidUploadTokenError(DomainValidationError):
+    """Raised when an upload intent token is invalid."""
+
+    def __init__(
+        self,
+        message: str = "Upload token is invalid.",
     ) -> None:
         super().__init__(message)
 

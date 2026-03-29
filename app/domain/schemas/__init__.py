@@ -1,4 +1,4 @@
-from app.domain.schemas.auth import LoginRequest, RegisterRequest
+from app.domain.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.domain.schemas.document import (
     DocumentConfirmUpload,
     DocumentCreate,
@@ -45,6 +45,7 @@ __all__ = [
     "ProjectStatus",
     "ProjectUpdate",
     "RegisterRequest",
+    "TokenResponse",
     "UploadIntentResponse",
     "UserAdminRead",
     "UserAdminUpdate",

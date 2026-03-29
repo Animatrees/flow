@@ -1,0 +1,11 @@
+services:
+  app:
+    image: ghcr.io/animatrees/flow/flow-app:latest
+    container_name: flow-app-prod
+    restart: always
+    env_file:
+      - .env.prod
+    ports:
+      - "80:8000"
+    volumes:
+      - ./secrets/prod:/run/secrets/flow:ro

@@ -7,17 +7,23 @@ from sqlalchemy.types import Uuid
 from uuid_extensions import uuid7
 
 
-class TimestampMixin:
+class CreatedAtMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
     )
 
+
+class UpdatedAtMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class TimestampMixin(CreatedAtMixin, UpdatedAtMixin):
+    pass
 
 
 class UUIDPkMixin:
