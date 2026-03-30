@@ -1,43 +1,21 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
-    tags:
-      - "v*"
   workflow_dispatch:
 
 jobs:
-  checks:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-
-      - name: Sync dependencies
-        run: uv sync --frozen --dev
-
-      - name: Run pre-commit
-        run: make precommit
-
-      - name: Run tests
-        run: make test
-
   publish:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    needs: checks
     permissions:
       contents: read
       packages: write
@@ -45,6 +23,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -97,10 +77,40 @@ jobs:
           role-to-assume: arn:aws:iam::885232249159:role/flow-github-actions-deploy-role
           aws-region: eu-north-1
 
+      - name: Fetch Infrastructure Outputs
+        id: infra
+        env:
+          STACK_NAME: ${{ vars.STACK_NAME }}
+        run: |
+          set -euo pipefail
+
+          DB_HOST=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='DatabaseEndpoint'].OutputValue | [0]" \
+            --output text)
+
+          S3_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='DocumentsBucketName'].OutputValue | [0]" \
+            --output text)
+
+          if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "None" ]; then
+            echo "DatabaseEndpoint output not found for stack $STACK_NAME" >&2
+            exit 1
+          fi
+
+          if [ -z "$S3_BUCKET" ] || [ "$S3_BUCKET" = "None" ]; then
+            echo "DocumentsBucketName output not found for stack $STACK_NAME" >&2
+            exit 1
+          fi
+
+          echo "db_host=$DB_HOST" >> "$GITHUB_OUTPUT"
+          echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
+
       - name: Trigger Deployment on EC2 via AWS SSM
         run: |
           aws ssm send-command \
             --targets "Key=tag:Role,Values=BackendApp" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["curl -s -O https://raw.githubusercontent.com/${{ github.repository }}/main/infrastructure/deploy.sh", "bash deploy.sh ${{ vars.DB_HOST }} ${{ github.repository }}"]' \
+            --parameters 'commands=["curl -s -O https://raw.githubusercontent.com/${{ github.repository }}/main/infrastructure/deploy.sh", "bash deploy.sh ${{ steps.infra.outputs.db_host }} ${{ github.repository }} ${{ steps.infra.outputs.s3_bucket }}"]' \
             --comment "Deploying branch main"

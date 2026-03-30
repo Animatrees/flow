@@ -4,6 +4,8 @@ from app.core.config import Settings
 
 from .admin_users import router as admin_users_router
 from .auth import router as auth_router
+from .documents import document_router
+from .documents import project_router as project_documents_router
 from .health_check import router
 from .projects import router as projects_router
 from .users import router as users_router
@@ -30,6 +32,16 @@ def init_routes(app: FastAPI, config: Settings) -> None:
         router=projects_router,
         prefix=f"{prefix}/projects",
         tags=["Projects"],
+    )
+    app.include_router(
+        router=project_documents_router,
+        prefix=f"{prefix}/projects",
+        tags=["Documents"],
+    )
+    app.include_router(
+        router=document_router,
+        prefix=f"{prefix}/documents",
+        tags=["Documents"],
     )
     app.include_router(
         router=router,

@@ -15,6 +15,7 @@ from app.domain.schemas import (
     ProjectMemberRole,
     ProjectRead,
     ProjectStatus,
+    StoredDocument,
 )
 from app.domain.schemas import (
     UserAuthRead as UserRead,
@@ -38,7 +39,7 @@ from app.services.jwt_service import JWTService
 from tests.fixtures.jwt import TEST_JWT_CONFIG
 from tests.unit.fakes.document_repository import (
     InMemoryDocumentRepository,
-    build_document_read,
+    build_stored_document,
 )
 from tests.unit.fakes.file_storage import InMemoryFileStorage
 from tests.unit.fakes.project_repository import InMemoryProjectRepository, build_project_read
@@ -102,8 +103,8 @@ def existing_project() -> ProjectRead:
 
 
 @pytest.fixture
-def existing_document() -> DocumentRead:
-    return build_document_read(
+def existing_document() -> StoredDocument:
+    return build_stored_document(
         document_id=DOCUMENT_ID,
         data=DocumentCreateStored(
             project_id=PROJECT_ID,
@@ -133,7 +134,7 @@ def project_repository(existing_project: ProjectRead) -> InMemoryProjectReposito
 
 
 @pytest.fixture
-def document_repository(existing_document: DocumentRead) -> InMemoryDocumentRepository:
+def document_repository(existing_document: StoredDocument) -> InMemoryDocumentRepository:
     return InMemoryDocumentRepository(
         documents=[existing_document],
         id_factory=lambda: UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
@@ -193,6 +194,7 @@ def build_upload_token(
 @pytest.mark.anyio
 async def test_document_service_initiate_upload_returns_upload_intent(
     document_service: DocumentService,
+    project_repository: InMemoryProjectRepository,
     owner: UserRead,
     file_storage: InMemoryFileStorage,
     jwt_service: JWTService,
@@ -216,6 +218,9 @@ async def test_document_service_initiate_upload_returns_upload_intent(
     assert file_storage.presigned_put_requests == [
         (payload["sub"], DOCX_CONTENT_TYPE, MAX_DOCUMENT_SIZE_BYTES)
     ]
+    assert project_repository.get_project_with_user_role_calls == [(PROJECT_ID, OWNER_ID)]
+    assert project_repository.get_by_id_calls == []
+    assert project_repository.has_access_to_project_calls == []
 
 
 @pytest.mark.anyio
@@ -395,7 +400,6 @@ async def test_document_service_confirm_upload_returns_created_document(
     assert created_document.filename == "flow.pdf"
     assert created_document.content_type == PDF_CONTENT_TYPE
     assert created_document.size_bytes == 12
-    assert created_document.storage_key == storage_key
     assert created_document.checksum is None
 
 
@@ -611,11 +615,11 @@ async def test_document_service_confirm_upload_deletes_file_when_metadata_create
 async def test_document_service_get_by_id_returns_document_for_participant(
     document_service: DocumentService,
     participant: UserRead,
-    existing_document: DocumentRead,
+    existing_document: StoredDocument,
 ) -> None:
     document = await document_service.get_by_id(participant, existing_document.id)
 
-    assert document == existing_document
+    assert document == DocumentRead.model_validate(existing_document)
 
 
 @pytest.mark.anyio
@@ -634,11 +638,11 @@ async def test_document_service_get_by_id_raises_for_missing_document(
 async def test_document_service_get_all_for_project_returns_documents(
     document_service: DocumentService,
     owner: UserRead,
-    existing_document: DocumentRead,
+    existing_document: StoredDocument,
 ) -> None:
     documents = await document_service.get_all_for_project(owner, PROJECT_ID)
 
-    assert list(documents) == [existing_document]
+    assert list(documents) == [DocumentRead.model_validate(existing_document)]
 
 
 @pytest.mark.anyio
@@ -659,6 +663,7 @@ async def test_document_service_update_returns_updated_document(
 async def test_document_service_delete_removes_document_and_file(
     document_service: DocumentService,
     document_repository: InMemoryDocumentRepository,
+    project_repository: InMemoryProjectRepository,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
 ) -> None:
@@ -666,6 +671,9 @@ async def test_document_service_delete_removes_document_and_file(
 
     assert await document_repository.get_by_id(DOCUMENT_ID) is None
     assert file_storage.deleted_keys == ["documents/architecture.pdf"]
+    assert project_repository.get_project_with_user_role_calls == [(PROJECT_ID, OWNER_ID)]
+    assert project_repository.get_by_id_calls == []
+    assert project_repository.has_access_to_project_calls == []
 
 
 @pytest.mark.anyio
@@ -676,7 +684,7 @@ async def test_document_service_delete_allows_participant_to_remove_own_document
     participant: UserRead,
     jwt_service: JWTService,
 ) -> None:
-    participant_document = build_document_read(
+    participant_document = build_stored_document(
         document_id=UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
         data=DocumentCreateStored(
             project_id=PROJECT_ID,

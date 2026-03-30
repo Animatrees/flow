@@ -7,10 +7,17 @@ services:
     restart: unless-stopped
     env_file:
       - .env.docker
+    environment:
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      AWS_REGION: ${S3__REGION}
+      AWS_SHARED_CREDENTIALS_FILE: "/tmp/.aws/credentials"
+      AWS_CONFIG_FILE: "/tmp/.aws/config"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./secrets/dev:/run/secrets/flow:ro
+      - ${HOME}/.aws:/tmp/.aws:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,6 +30,8 @@ services:
       POSTGRES_DB: ${DB__NAME}
       POSTGRES_USER: ${DB__USER}
       POSTGRES_PASSWORD: ${DB__PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

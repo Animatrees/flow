@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from app.domain.schemas import (
+    StoredUser,
     UserAdminRead,
     UserAdminUpdate,
     UserAuthRead,
     UserCreate,
-    UserData,
     UserPublicRead,
     UserSelfRead,
     UserUpdate,
@@ -48,8 +48,8 @@ def build_user_auth_read(  # noqa: PLR0913
     )
 
 
-def to_user_data(user: UserAuthRead) -> UserData:
-    return UserData.model_validate(user)
+def to_stored_user(user: UserAuthRead) -> StoredUser:
+    return StoredUser.model_validate(user)
 
 
 def to_user_self_read(user: UserAuthRead) -> UserSelfRead:
@@ -96,28 +96,28 @@ class InMemoryUserRepository(AbstractUserRepository):
         self.update_error: Exception | None = None
         self.id_factory = id_factory or uuid4
 
-    async def get_active_by_id(self, id_: UUID) -> UserData | None:
+    async def get_active_by_id(self, id_: UUID) -> StoredUser | None:
         user = self.users.get(id_)
         if user is None or user.deleted_at is not None or not user.is_active:
             return None
-        return to_user_data(user)
+        return to_stored_user(user)
 
-    async def get_active_by_username(self, username: str) -> UserData | None:
+    async def get_active_by_username(self, username: str) -> StoredUser | None:
         for user in self.users.values():
             if user.username == username and user.deleted_at is None and user.is_active:
-                return to_user_data(user)
+                return to_stored_user(user)
         return None
 
-    async def get_any_by_id(self, id_: UUID) -> UserData | None:
+    async def get_any_by_id(self, id_: UUID) -> StoredUser | None:
         user = self.users.get(id_)
         if user is None:
             return None
-        return to_user_data(user)
+        return to_stored_user(user)
 
-    async def get_all_any_status(self) -> Sequence[UserData]:
-        return [to_user_data(user) for user in self.users.values()]
+    async def get_all_any_status(self) -> Sequence[StoredUser]:
+        return [to_stored_user(user) for user in self.users.values()]
 
-    async def create(self, data: UserCreate) -> UserData:
+    async def create(self, data: UserCreate) -> StoredUser:
         if self.create_error is not None:
             raise self.create_error
 
@@ -130,9 +130,9 @@ class InMemoryUserRepository(AbstractUserRepository):
             password_hash=data.password_hash,
         )
         self.users[created_user.id] = created_user
-        return to_user_data(created_user)
+        return to_stored_user(created_user)
 
-    async def update(self, id_: UUID, data: UserUpdate) -> UserData | None:
+    async def update(self, id_: UUID, data: UserUpdate) -> StoredUser | None:
         if self.update_error is not None:
             raise self.update_error
 
@@ -146,9 +146,9 @@ class InMemoryUserRepository(AbstractUserRepository):
 
         updated_user = user.model_copy(update=data.model_dump(exclude_unset=True))
         self.users[id_] = updated_user
-        return to_user_data(updated_user)
+        return to_stored_user(updated_user)
 
-    async def update_admin(self, id_: UUID, data: UserAdminUpdate) -> UserData | None:
+    async def update_admin(self, id_: UUID, data: UserAdminUpdate) -> StoredUser | None:
         if self.update_error is not None:
             raise self.update_error
 
@@ -162,7 +162,7 @@ class InMemoryUserRepository(AbstractUserRepository):
 
         updated_user = user.model_copy(update=data.model_dump(exclude_unset=True))
         self.users[id_] = updated_user
-        return to_user_data(updated_user)
+        return to_stored_user(updated_user)
 
     async def soft_delete(self, user_id: UserId) -> bool:
         user = self.users.get(user_id)

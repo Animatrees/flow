@@ -50,8 +50,12 @@ class InMemoryProjectRepository(AbstractProjectRepository):
 
         self.id_factory = id_factory or uuid4
         self.add_member_error: Exception | None = None
+        self.get_by_id_calls: list[UUID] = []
+        self.get_project_with_user_role_calls: list[tuple[UUID, UUID]] = []
+        self.has_access_to_project_calls: list[tuple[UUID, UUID]] = []
 
     async def get_by_id(self, id_: UUID) -> ProjectRead | None:
+        self.get_by_id_calls.append(id_)
         return self.projects.get(id_)
 
     async def get_project_with_user_role(
@@ -59,6 +63,7 @@ class InMemoryProjectRepository(AbstractProjectRepository):
         project_id: UUID,
         user_id: UUID,
     ) -> ProjectWithUserRole | None:
+        self.get_project_with_user_role_calls.append((project_id, user_id))
         project = self.projects.get(project_id)
         if project is None:
             return None
@@ -123,6 +128,7 @@ class InMemoryProjectRepository(AbstractProjectRepository):
         ]
 
     async def has_access_to_project(self, project_id: UUID, user_id: UUID) -> bool:
+        self.has_access_to_project_calls.append((project_id, user_id))
         return user_id in self.members.get(project_id, {})
 
     async def add_member(self, project_id: UUID, user_id: UUID) -> ProjectMemberRead:

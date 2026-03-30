@@ -5,6 +5,8 @@ from app.domain.schemas.document import (
     DocumentCreateStored,
     DocumentRead,
     DocumentUpdate,
+    DownloadUrlResponse,
+    StoredDocument,
     UploadIntentResponse,
 )
 from app.domain.schemas.project import (
@@ -18,11 +20,11 @@ from app.domain.schemas.project import (
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
 from app.domain.schemas.user import (
+    StoredUser,
     UserAdminRead,
     UserAdminUpdate,
     UserAuthRead,
     UserCreate,
-    UserData,
     UserPublicRead,
     UserSelfRead,
     UserUpdate,
@@ -35,6 +37,7 @@ __all__ = [
     "DocumentId",
     "DocumentRead",
     "DocumentUpdate",
+    "DownloadUrlResponse",
     "LoginRequest",
     "ProjectCreate",
     "ProjectCreateWithOwner",
@@ -45,13 +48,14 @@ __all__ = [
     "ProjectStatus",
     "ProjectUpdate",
     "RegisterRequest",
+    "StoredDocument",
+    "StoredUser",
     "TokenResponse",
     "UploadIntentResponse",
     "UserAdminRead",
     "UserAdminUpdate",
     "UserAuthRead",
     "UserCreate",
-    "UserData",
     "UserId",
     "UserPublicRead",
     "UserSelfRead",

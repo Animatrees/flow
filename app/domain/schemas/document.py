@@ -64,6 +64,15 @@ class DocumentRead(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
-    storage_key: str
     checksum: str | None
     created_at: datetime
+
+
+class StoredDocument(DocumentRead):
+    storage_key: str
+
+
+class DownloadUrlResponse(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    download_url: str

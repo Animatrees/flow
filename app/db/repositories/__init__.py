@@ -1,3 +1,4 @@
+from app.db.repositories.document import DocumentRepository
 from app.db.repositories.exceptions import (
     ConflictError,
     EmailAlreadyExistsError,
@@ -11,6 +12,7 @@ from app.db.repositories.user import UserRepository
 
 __all__ = [
     "ConflictError",
+    "DocumentRepository",
     "EmailAlreadyExistsError",
     "ProjectNotFoundError",
     "ProjectRepository",

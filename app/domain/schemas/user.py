@@ -58,7 +58,7 @@ class UserAdminUpdate(UserUpdate):
     is_active: bool | None = None
 
 
-class UserData(BaseModel):
+class StoredUser(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UserId

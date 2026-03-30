@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - develop
+      - main
   pull_request:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  checks:
+  precommit:
     runs-on: ubuntu-latest
 
     steps:
@@ -33,5 +34,49 @@ jobs:
       - name: Run pre-commit
         run: make precommit
 
-      - name: Run tests
-        run: make test
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen --dev
+
+      - name: Run unit tests
+        run: make test-unit
+
+  integration-tests:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen --dev
+
+      - name: Run integration tests
+        run: make test-integration

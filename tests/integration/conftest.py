@@ -19,10 +19,12 @@ from sqlalchemy.pool import NullPool
 
 from app.api.v1 import init_exception_handler
 from app.api.v1.routes import init_routes
-from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, Settings
+from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, S3Config, Settings
 from app.db.models import Base
 from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider
+from app.services import AbstractFileStorage
 from tests.fixtures.jwt import TEST_JWT_CONFIG
+from tests.unit.fakes.file_storage import InMemoryFileStorage
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -95,6 +97,16 @@ class ApiTestDatabaseProvider(Provider):
             await session.close()
 
 
+class TestStorageProvider(Provider):
+    def __init__(self, file_storage: InMemoryFileStorage) -> None:
+        super().__init__()
+        self._file_storage = file_storage
+
+    @provide(scope=Scope.APP, provides=AbstractFileStorage)
+    def provide_file_storage(self) -> AbstractFileStorage:
+        return self._file_storage
+
+
 async def prepare_database(db_url: str) -> None:
     engine = create_test_engine(db_url)
     try:
@@ -132,7 +144,14 @@ async def db_session(
 
 
 @pytest.fixture
-async def container(tmp_path: Path) -> AsyncIterator[AsyncContainer]:
+def file_storage() -> InMemoryFileStorage:
+    return InMemoryFileStorage()
+
+
+@pytest.fixture
+async def container(
+    tmp_path: Path, file_storage: InMemoryFileStorage
+) -> AsyncIterator[AsyncContainer]:
     db_url = f"sqlite+aiosqlite:///{tmp_path / 'test.db'}"
     await prepare_database(db_url)
     settings = Settings.model_construct(
@@ -146,12 +165,18 @@ async def container(tmp_path: Path) -> AsyncIterator[AsyncContainer]:
             port=5432,
         ),
         jwt=TEST_JWT_CONFIG,
+        s3=S3Config(
+            bucket="test-docs",
+            region="eu-north-1",
+            presign_expire_seconds=900,
+        ),
     )
 
     test_container = make_async_container(
         ConfigProvider(config=settings),
         ApiTestDatabaseProvider(db_url),
         RepositoryProvider(),
+        TestStorageProvider(file_storage),
         ServiceProvider(),
     )
     try:
@@ -173,6 +198,11 @@ def settings() -> Settings:
             port=5432,
         ),
         jwt=TEST_JWT_CONFIG,
+        s3=S3Config(
+            bucket="test-docs",
+            region="eu-north-1",
+            presign_expire_seconds=900,
+        ),
     )
 
 
