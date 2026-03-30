@@ -5,6 +5,8 @@ from app.domain.schemas.document import (
     DocumentCreateStored,
     DocumentRead,
     DocumentUpdate,
+    DownloadUrlResponse,
+    StoredDocumentRead,
     UploadIntentResponse,
 )
 from app.domain.schemas.project import (
@@ -35,6 +37,7 @@ __all__ = [
     "DocumentId",
     "DocumentRead",
     "DocumentUpdate",
+    "DownloadUrlResponse",
     "LoginRequest",
     "ProjectCreate",
     "ProjectCreateWithOwner",
@@ -45,6 +48,7 @@ __all__ = [
     "ProjectStatus",
     "ProjectUpdate",
     "RegisterRequest",
+    "StoredDocumentRead",
     "TokenResponse",
     "UploadIntentResponse",
     "UserAdminRead",

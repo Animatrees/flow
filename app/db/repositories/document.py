@@ -12,7 +12,7 @@ from app.db.repositories.exceptions import (
     UserNotFoundError,
 )
 from app.domain.repositories import AbstractDocumentRepository
-from app.domain.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
+from app.domain.schemas.document import DocumentCreateStored, DocumentUpdate, StoredDocumentRead
 from app.domain.schemas.type_ids import DocumentId, ProjectId
 
 
@@ -20,25 +20,25 @@ class DocumentRepository(AbstractDocumentRepository):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_by_id(self, id_: DocumentId) -> DocumentRead | None:
+    async def get_by_id(self, id_: DocumentId) -> StoredDocumentRead | None:
         document = await self.session.get(Document, id_)
-        return DocumentRead.model_validate(document) if document is not None else None
+        return StoredDocumentRead.model_validate(document) if document is not None else None
 
-    async def get_all(self) -> Sequence[DocumentRead]:
+    async def get_all(self) -> Sequence[StoredDocumentRead]:
         statement = select(Document).order_by(Document.created_at, Document.id)
         documents = await self.session.scalars(statement)
-        return [DocumentRead.model_validate(document) for document in documents]
+        return [StoredDocumentRead.model_validate(document) for document in documents]
 
-    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[DocumentRead]:
+    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[StoredDocumentRead]:
         statement = (
             select(Document)
             .where(Document.project_id == project_id)
             .order_by(Document.created_at, Document.id)
         )
         documents = await self.session.scalars(statement)
-        return [DocumentRead.model_validate(document) for document in documents]
+        return [StoredDocumentRead.model_validate(document) for document in documents]
 
-    async def create(self, data: DocumentCreateStored) -> DocumentRead:
+    async def create(self, data: DocumentCreateStored) -> StoredDocumentRead:
         document = Document(**data.model_dump())
         self.session.add(document)
 
@@ -47,9 +47,9 @@ class DocumentRepository(AbstractDocumentRepository):
         except IntegrityError as err:
             raise self._map_create_integrity_error(err, data) from err
 
-        return DocumentRead.model_validate(document)
+        return StoredDocumentRead.model_validate(document)
 
-    async def update(self, id_: DocumentId, data: DocumentUpdate) -> DocumentRead | None:
+    async def update(self, id_: DocumentId, data: DocumentUpdate) -> StoredDocumentRead | None:
         document = await self.session.get(Document, id_)
         if document is None:
             return None
@@ -62,7 +62,7 @@ class DocumentRepository(AbstractDocumentRepository):
         except IntegrityError as err:
             raise self._map_update_integrity_error(err) from err
 
-        return DocumentRead.model_validate(document)
+        return StoredDocumentRead.model_validate(document)
 
     async def delete(self, id_: DocumentId) -> bool:
         document = await self.session.get(Document, id_)

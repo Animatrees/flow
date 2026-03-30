@@ -17,6 +17,7 @@ from app.domain.schemas.document import (
     DocumentCreateStored,
     DocumentRead,
     DocumentUpdate,
+    StoredDocumentRead,
     UploadIntentResponse,
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
@@ -112,7 +113,7 @@ class DocumentService:
         size_bytes = self._validate_size(stored_object.size_bytes)
 
         try:
-            return await self.repo.create(
+            created_document = await self.repo.create(
                 DocumentCreateStored(
                     project_id=project_id,
                     uploaded_by=current_user.id,
@@ -123,6 +124,7 @@ class DocumentService:
                     checksum=data.checksum,
                 )
             )
+            return self._to_public_document(created_document)
         except Exception:
             await self._delete_file_safely(storage_key)
             raise
@@ -130,7 +132,7 @@ class DocumentService:
     async def get_by_id(self, current_user: UserAuthRead, document_id: DocumentId) -> DocumentRead:
         document = await self._get_document(document_id)
         await self._ensure_project_access(current_user, document.project_id)
-        return document
+        return self._to_public_document(document)
 
     async def get_download_url(self, current_user: UserAuthRead, document_id: DocumentId) -> str:
         document = await self._get_document(document_id)
@@ -143,7 +145,8 @@ class DocumentService:
         project_id: ProjectId,
     ) -> Sequence[DocumentRead]:
         await self._ensure_project_access(current_user, project_id)
-        return await self.repo.get_all_for_project(project_id)
+        documents = await self.repo.get_all_for_project(project_id)
+        return [self._to_public_document(document) for document in documents]
 
     async def update(
         self,
@@ -158,7 +161,7 @@ class DocumentService:
         if updated_document is None:
             msg = f"Document with id '{document_id}' was not found."
             raise DocumentNotFoundError(msg)
-        return updated_document
+        return self._to_public_document(updated_document)
 
     async def delete(self, current_user: UserAuthRead, document_id: DocumentId) -> None:
         document = await self._get_document(document_id)
@@ -171,12 +174,16 @@ class DocumentService:
 
         await self._delete_file_safely(document.storage_key)
 
-    async def _get_document(self, document_id: DocumentId) -> DocumentRead:
+    async def _get_document(self, document_id: DocumentId) -> StoredDocumentRead:
         document = await self.repo.get_by_id(document_id)
         if document is None:
             msg = f"Document with id '{document_id}' was not found."
             raise DocumentNotFoundError(msg)
         return document
+
+    @staticmethod
+    def _to_public_document(document: StoredDocumentRead) -> DocumentRead:
+        return DocumentRead.model_validate(document)
 
     async def _ensure_project_access(
         self, current_user: UserAuthRead, project_id: ProjectId
@@ -278,7 +285,7 @@ class DocumentService:
         return size_bytes
 
     async def _ensure_delete_access(
-        self, current_user: UserAuthRead, document: DocumentRead
+        self, current_user: UserAuthRead, document: StoredDocumentRead
     ) -> None:
         project_with_user_role = await self._require_project_with_user_role(
             document.project_id,

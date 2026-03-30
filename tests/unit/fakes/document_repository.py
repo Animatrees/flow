@@ -2,7 +2,7 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.domain.schemas.document import DocumentCreateStored, DocumentRead, DocumentUpdate
+from app.domain.schemas.document import DocumentCreateStored, DocumentUpdate, StoredDocumentRead
 from app.domain.schemas.type_ids import DocumentId, ProjectId
 from app.services import AbstractDocumentRepository
 
@@ -12,8 +12,8 @@ def build_document_read(
     document_id: UUID,
     data: DocumentCreateStored,
     created_at: datetime | None = None,
-) -> DocumentRead:
-    return DocumentRead(
+) -> StoredDocumentRead:
+    return StoredDocumentRead(
         id=DocumentId(document_id),
         project_id=data.project_id,
         uploaded_by=data.uploaded_by,
@@ -29,28 +29,28 @@ def build_document_read(
 class InMemoryDocumentRepository(AbstractDocumentRepository):
     def __init__(
         self,
-        documents: Iterable[DocumentRead] | None = None,
+        documents: Iterable[StoredDocumentRead] | None = None,
         id_factory: Callable[[], UUID] | None = None,
     ) -> None:
-        self.documents: dict[UUID, DocumentRead] = {
+        self.documents: dict[UUID, StoredDocumentRead] = {
             document.id: document for document in (documents or [])
         }
         self.id_factory = id_factory or uuid4
         self.create_error: Exception | None = None
         self.update_error: Exception | None = None
 
-    async def get_by_id(self, id_: UUID) -> DocumentRead | None:
+    async def get_by_id(self, id_: UUID) -> StoredDocumentRead | None:
         return self.documents.get(id_)
 
-    async def get_all(self) -> Sequence[DocumentRead]:
+    async def get_all(self) -> Sequence[StoredDocumentRead]:
         return list(self.documents.values())
 
-    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[DocumentRead]:
+    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[StoredDocumentRead]:
         return [
             document for document in self.documents.values() if document.project_id == project_id
         ]
 
-    async def create(self, data: DocumentCreateStored) -> DocumentRead:
+    async def create(self, data: DocumentCreateStored) -> StoredDocumentRead:
         if self.create_error is not None:
             raise self.create_error
 
@@ -58,7 +58,7 @@ class InMemoryDocumentRepository(AbstractDocumentRepository):
         self.documents[created_document.id] = created_document
         return created_document
 
-    async def update(self, id_: UUID, data: DocumentUpdate) -> DocumentRead | None:
+    async def update(self, id_: UUID, data: DocumentUpdate) -> StoredDocumentRead | None:
         if self.update_error is not None:
             raise self.update_error
 

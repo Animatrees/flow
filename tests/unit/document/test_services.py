@@ -15,6 +15,7 @@ from app.domain.schemas import (
     ProjectMemberRole,
     ProjectRead,
     ProjectStatus,
+    StoredDocumentRead,
 )
 from app.domain.schemas import (
     UserAuthRead as UserRead,
@@ -102,7 +103,7 @@ def existing_project() -> ProjectRead:
 
 
 @pytest.fixture
-def existing_document() -> DocumentRead:
+def existing_document() -> StoredDocumentRead:
     return build_document_read(
         document_id=DOCUMENT_ID,
         data=DocumentCreateStored(
@@ -133,7 +134,7 @@ def project_repository(existing_project: ProjectRead) -> InMemoryProjectReposito
 
 
 @pytest.fixture
-def document_repository(existing_document: DocumentRead) -> InMemoryDocumentRepository:
+def document_repository(existing_document: StoredDocumentRead) -> InMemoryDocumentRepository:
     return InMemoryDocumentRepository(
         documents=[existing_document],
         id_factory=lambda: UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
@@ -399,7 +400,6 @@ async def test_document_service_confirm_upload_returns_created_document(
     assert created_document.filename == "flow.pdf"
     assert created_document.content_type == PDF_CONTENT_TYPE
     assert created_document.size_bytes == 12
-    assert created_document.storage_key == storage_key
     assert created_document.checksum is None
 
 
@@ -615,11 +615,11 @@ async def test_document_service_confirm_upload_deletes_file_when_metadata_create
 async def test_document_service_get_by_id_returns_document_for_participant(
     document_service: DocumentService,
     participant: UserRead,
-    existing_document: DocumentRead,
+    existing_document: StoredDocumentRead,
 ) -> None:
     document = await document_service.get_by_id(participant, existing_document.id)
 
-    assert document == existing_document
+    assert document == DocumentRead.model_validate(existing_document)
 
 
 @pytest.mark.anyio
@@ -638,11 +638,11 @@ async def test_document_service_get_by_id_raises_for_missing_document(
 async def test_document_service_get_all_for_project_returns_documents(
     document_service: DocumentService,
     owner: UserRead,
-    existing_document: DocumentRead,
+    existing_document: StoredDocumentRead,
 ) -> None:
     documents = await document_service.get_all_for_project(owner, PROJECT_ID)
 
-    assert list(documents) == [existing_document]
+    assert list(documents) == [DocumentRead.model_validate(existing_document)]
 
 
 @pytest.mark.anyio
