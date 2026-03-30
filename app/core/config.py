@@ -47,6 +47,14 @@ class JWTConfig(BaseModel):
     upload_token_expire_minutes: int = 60
 
 
+class S3Config(BaseModel):
+    bucket: str
+    region: str
+    presign_expire_seconds: int
+    key_prefix: str = ""
+    endpoint_url: str | None = None
+
+
 class Settings(BaseSettings):
     ENV_FILE_PATH: Path = Path(__file__).resolve().parent.parent.parent / ".env"
 
@@ -63,3 +71,4 @@ class Settings(BaseSettings):
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
     jwt: JWTConfig = Field(default_factory=JWTConfig)
+    s3: S3Config = Field(default_factory=S3Config)

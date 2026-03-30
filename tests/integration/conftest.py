@@ -19,9 +19,9 @@ from sqlalchemy.pool import NullPool
 
 from app.api.v1 import init_exception_handler
 from app.api.v1.routes import init_routes
-from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, Settings
+from app.core.config import ApiPrefix, DatabaseConfig, RunConfig, S3Config, Settings
 from app.db.models import Base
-from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider
+from app.providers import ConfigProvider, RepositoryProvider, ServiceProvider, StorageProvider
 from tests.fixtures.jwt import TEST_JWT_CONFIG
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -146,12 +146,18 @@ async def container(tmp_path: Path) -> AsyncIterator[AsyncContainer]:
             port=5432,
         ),
         jwt=TEST_JWT_CONFIG,
+        s3=S3Config(
+            bucket="test-docs",
+            region="eu-north-1",
+            presign_expire_seconds=900,
+        ),
     )
 
     test_container = make_async_container(
         ConfigProvider(config=settings),
         ApiTestDatabaseProvider(db_url),
         RepositoryProvider(),
+        StorageProvider(),
         ServiceProvider(),
     )
     try:
@@ -173,6 +179,11 @@ def settings() -> Settings:
             port=5432,
         ),
         jwt=TEST_JWT_CONFIG,
+        s3=S3Config(
+            bucket="test-docs",
+            region="eu-north-1",
+            presign_expire_seconds=900,
+        ),
     )
 
 

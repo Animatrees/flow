@@ -280,6 +280,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - cloudformation:DescribeStacks
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
+              - Effect: Allow
+                Action:
                   - ssm:SendCommand
                   - ssm:GetCommandInvocation
                 Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
@@ -300,6 +304,12 @@ Outputs:
     Value: !GetAtt PostgresDB.Endpoint.Address
     Export:
       Name: FlowDbEndpoint
+
+  DocumentsBucketName:
+    Description: 'S3 bucket used for document storage'
+    Value: !Ref DocumentsBucket
+    Export:
+      Name: FlowDocumentsBucketName
 
   AppPublicIP:
     Description: 'Public IP of the FastAPI Backend'
