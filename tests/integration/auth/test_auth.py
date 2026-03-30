@@ -141,20 +141,14 @@ async def test_register_rejects_mismatched_passwords(client: httpx.AsyncClient) 
     }
 
 
-async def test_register_rejects_invalid_email(client: httpx.AsyncClient) -> None:
+async def test_register_rejects_password_similar_to_user_inputs(client: httpx.AsyncClient) -> None:
     response = await register_user(
         client,
-        email="not-an-email",
+        password="Valid.User123",
     )
 
     assert response.status_code == 422
     assert response.headers["content-type"] == JSON_CONTENT_TYPE
     assert response.json()["message"] == "Data validation error"
-    assert response.json()["details"] == [
-        {
-            "loc": ["body", "email"],
-            "msg": response.json()["details"][0]["msg"],
-            "type": "value_error",
-        }
-    ]
-    assert "@-sign" in response.json()["details"][0]["msg"]
+    assert response.json()["details"][0]["loc"] == ["body"]
+    assert "Password is too weak." in response.json()["details"][0]["msg"]

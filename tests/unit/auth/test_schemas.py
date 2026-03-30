@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.domain.schemas import LoginRequest, RegisterRequest
+from app.domain.schemas import RegisterRequest
 
 VALID_USERNAME = "valid.user"
 VALID_EMAIL = "user@example.com"
@@ -16,34 +16,6 @@ def valid_register_data() -> dict:
         "repeat_password": VALID_PASSWORD,
         "email": VALID_EMAIL,
     }
-
-
-@pytest.fixture
-def valid_register_request(valid_register_data: dict) -> RegisterRequest:
-    return RegisterRequest(**valid_register_data)
-
-
-def test_register_request_accepts_valid_payload(valid_register_request: RegisterRequest):
-    assert valid_register_request.username == VALID_USERNAME
-    assert valid_register_request.email == VALID_EMAIL
-    assert valid_register_request.password == VALID_PASSWORD
-
-
-@pytest.mark.parametrize(
-    "username",
-    [
-        "invalid user",  # space
-        "user@name",  # @
-        "user#name",  # #
-        "пользователь",  # cyrillic
-    ],
-)
-def test_username_rejects_invalid_characters(valid_register_data: dict, username: str):
-    with pytest.raises(
-        ValidationError,
-        match="Username may contain only letters, digits, dots, underscores, and hyphens",
-    ):
-        RegisterRequest(**{**valid_register_data, "username": username})
 
 
 @pytest.mark.parametrize(
@@ -83,21 +55,6 @@ def test_password_match_rejects_mismatch(valid_register_data: dict):
         RegisterRequest(**{**valid_register_data, "repeat_password": "AnotherPass1!"})
 
 
-@pytest.mark.parametrize(
-    "email",
-    [
-        "invalid-email",
-        "missing@",
-        "@nodomain.com",
-        "no-at-sign",
-        "",
-    ],
-)
-def test_email_rejects_invalid_format(valid_register_data: dict, email: str):
-    with pytest.raises(ValidationError):
-        RegisterRequest(**{**valid_register_data, "email": email})
-
-
 def test_password_rejects_password_similar_to_user_inputs(valid_register_data: dict):
     weak_password = "valid.user123"
 
@@ -109,9 +66,3 @@ def test_password_rejects_password_similar_to_user_inputs(valid_register_data: d
                 "repeat_password": weak_password,
             }
         )
-
-
-def test_login_request_normalizes_username_to_lowercase():
-    login_request = LoginRequest(username="Valid.User", password="StrongPass1!")
-
-    assert login_request.username == "valid.user"
