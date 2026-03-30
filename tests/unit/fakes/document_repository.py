@@ -2,18 +2,18 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.domain.schemas.document import DocumentCreateStored, DocumentUpdate, StoredDocumentRead
+from app.domain.schemas.document import DocumentCreateStored, DocumentUpdate, StoredDocument
 from app.domain.schemas.type_ids import DocumentId, ProjectId
 from app.services import AbstractDocumentRepository
 
 
-def build_document_read(
+def build_stored_document(
     *,
     document_id: UUID,
     data: DocumentCreateStored,
     created_at: datetime | None = None,
-) -> StoredDocumentRead:
-    return StoredDocumentRead(
+) -> StoredDocument:
+    return StoredDocument(
         id=DocumentId(document_id),
         project_id=data.project_id,
         uploaded_by=data.uploaded_by,
@@ -29,36 +29,36 @@ def build_document_read(
 class InMemoryDocumentRepository(AbstractDocumentRepository):
     def __init__(
         self,
-        documents: Iterable[StoredDocumentRead] | None = None,
+        documents: Iterable[StoredDocument] | None = None,
         id_factory: Callable[[], UUID] | None = None,
     ) -> None:
-        self.documents: dict[UUID, StoredDocumentRead] = {
+        self.documents: dict[UUID, StoredDocument] = {
             document.id: document for document in (documents or [])
         }
         self.id_factory = id_factory or uuid4
         self.create_error: Exception | None = None
         self.update_error: Exception | None = None
 
-    async def get_by_id(self, id_: UUID) -> StoredDocumentRead | None:
+    async def get_by_id(self, id_: UUID) -> StoredDocument | None:
         return self.documents.get(id_)
 
-    async def get_all(self) -> Sequence[StoredDocumentRead]:
+    async def get_all(self) -> Sequence[StoredDocument]:
         return list(self.documents.values())
 
-    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[StoredDocumentRead]:
+    async def get_all_for_project(self, project_id: ProjectId) -> Sequence[StoredDocument]:
         return [
             document for document in self.documents.values() if document.project_id == project_id
         ]
 
-    async def create(self, data: DocumentCreateStored) -> StoredDocumentRead:
+    async def create(self, data: DocumentCreateStored) -> StoredDocument:
         if self.create_error is not None:
             raise self.create_error
 
-        created_document = build_document_read(document_id=self.id_factory(), data=data)
+        created_document = build_stored_document(document_id=self.id_factory(), data=data)
         self.documents[created_document.id] = created_document
         return created_document
 
-    async def update(self, id_: UUID, data: DocumentUpdate) -> StoredDocumentRead | None:
+    async def update(self, id_: UUID, data: DocumentUpdate) -> StoredDocument | None:
         if self.update_error is not None:
             raise self.update_error
 

@@ -68,7 +68,7 @@ class DocumentRead(BaseModel):
     created_at: datetime
 
 
-class StoredDocumentRead(DocumentRead):
+class StoredDocument(DocumentRead):
     storage_key: str
 
 

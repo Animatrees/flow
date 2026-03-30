@@ -1,7 +1,7 @@
 from app.domain.schemas.user import (
+    StoredUser,
     UserAdminRead,
     UserAuthRead,
-    UserData,
     UserPublicRead,
     UserSelfRead,
 )
@@ -9,17 +9,17 @@ from app.domain.schemas.user import (
 
 class UserMapper:
     @staticmethod
-    def to_public(user: UserData) -> UserPublicRead:
+    def to_public(user: StoredUser) -> UserPublicRead:
         return UserPublicRead.model_validate(user)
 
     @staticmethod
-    def to_self(user: UserData) -> UserSelfRead:
+    def to_self(user: StoredUser) -> UserSelfRead:
         return UserSelfRead.model_validate(user)
 
     @staticmethod
-    def to_auth(user: UserData) -> UserAuthRead:
+    def to_auth(user: StoredUser) -> UserAuthRead:
         return UserAuthRead.model_validate(user)
 
     @staticmethod
-    def to_admin(user: UserData) -> UserAdminRead:
+    def to_admin(user: StoredUser) -> UserAdminRead:
         return UserAdminRead.model_validate(user)

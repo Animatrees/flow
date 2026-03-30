@@ -15,7 +15,7 @@ from app.domain.schemas import (
     ProjectMemberRole,
     ProjectRead,
     ProjectStatus,
-    StoredDocumentRead,
+    StoredDocument,
 )
 from app.domain.schemas import (
     UserAuthRead as UserRead,
@@ -39,7 +39,7 @@ from app.services.jwt_service import JWTService
 from tests.fixtures.jwt import TEST_JWT_CONFIG
 from tests.unit.fakes.document_repository import (
     InMemoryDocumentRepository,
-    build_document_read,
+    build_stored_document,
 )
 from tests.unit.fakes.file_storage import InMemoryFileStorage
 from tests.unit.fakes.project_repository import InMemoryProjectRepository, build_project_read
@@ -103,8 +103,8 @@ def existing_project() -> ProjectRead:
 
 
 @pytest.fixture
-def existing_document() -> StoredDocumentRead:
-    return build_document_read(
+def existing_document() -> StoredDocument:
+    return build_stored_document(
         document_id=DOCUMENT_ID,
         data=DocumentCreateStored(
             project_id=PROJECT_ID,
@@ -134,7 +134,7 @@ def project_repository(existing_project: ProjectRead) -> InMemoryProjectReposito
 
 
 @pytest.fixture
-def document_repository(existing_document: StoredDocumentRead) -> InMemoryDocumentRepository:
+def document_repository(existing_document: StoredDocument) -> InMemoryDocumentRepository:
     return InMemoryDocumentRepository(
         documents=[existing_document],
         id_factory=lambda: UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
@@ -615,7 +615,7 @@ async def test_document_service_confirm_upload_deletes_file_when_metadata_create
 async def test_document_service_get_by_id_returns_document_for_participant(
     document_service: DocumentService,
     participant: UserRead,
-    existing_document: StoredDocumentRead,
+    existing_document: StoredDocument,
 ) -> None:
     document = await document_service.get_by_id(participant, existing_document.id)
 
@@ -638,7 +638,7 @@ async def test_document_service_get_by_id_raises_for_missing_document(
 async def test_document_service_get_all_for_project_returns_documents(
     document_service: DocumentService,
     owner: UserRead,
-    existing_document: StoredDocumentRead,
+    existing_document: StoredDocument,
 ) -> None:
     documents = await document_service.get_all_for_project(owner, PROJECT_ID)
 
@@ -684,7 +684,7 @@ async def test_document_service_delete_allows_participant_to_remove_own_document
     participant: UserRead,
     jwt_service: JWTService,
 ) -> None:
-    participant_document = build_document_read(
+    participant_document = build_stored_document(
         document_id=UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
         data=DocumentCreateStored(
             project_id=PROJECT_ID,

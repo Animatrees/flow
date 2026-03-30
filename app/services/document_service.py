@@ -17,7 +17,7 @@ from app.domain.schemas.document import (
     DocumentCreateStored,
     DocumentRead,
     DocumentUpdate,
-    StoredDocumentRead,
+    StoredDocument,
     UploadIntentResponse,
 )
 from app.domain.schemas.type_ids import DocumentId, ProjectId, UserId
@@ -174,7 +174,7 @@ class DocumentService:
 
         await self._delete_file_safely(document.storage_key)
 
-    async def _get_document(self, document_id: DocumentId) -> StoredDocumentRead:
+    async def _get_document(self, document_id: DocumentId) -> StoredDocument:
         document = await self.repo.get_by_id(document_id)
         if document is None:
             msg = f"Document with id '{document_id}' was not found."
@@ -182,7 +182,7 @@ class DocumentService:
         return document
 
     @staticmethod
-    def _to_public_document(document: StoredDocumentRead) -> DocumentRead:
+    def _to_public_document(document: StoredDocument) -> DocumentRead:
         return DocumentRead.model_validate(document)
 
     async def _ensure_project_access(
@@ -285,7 +285,7 @@ class DocumentService:
         return size_bytes
 
     async def _ensure_delete_access(
-        self, current_user: UserAuthRead, document: StoredDocumentRead
+        self, current_user: UserAuthRead, document: StoredDocument
     ) -> None:
         project_with_user_role = await self._require_project_with_user_role(
             document.project_id,

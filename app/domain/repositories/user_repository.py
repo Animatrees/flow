@@ -2,36 +2,36 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from app.domain.schemas.type_ids import UserId
-from app.domain.schemas.user import UserAdminUpdate, UserCreate, UserData, UserUpdate
+from app.domain.schemas.user import StoredUser, UserAdminUpdate, UserCreate, UserUpdate
 
 
 class AbstractUserRepository(ABC):
     @abstractmethod
-    async def get_active_by_id(self, id_: UserId) -> UserData | None:
+    async def get_active_by_id(self, id_: UserId) -> StoredUser | None:
         """Return an active, non-deleted user by id or None if it does not exist."""
 
     @abstractmethod
-    async def get_active_by_username(self, username: str) -> UserData | None:
+    async def get_active_by_username(self, username: str) -> StoredUser | None:
         """Return an active, non-deleted user by username or None if it does not exist."""
 
     @abstractmethod
-    async def get_any_by_id(self, id_: UserId) -> UserData | None:
+    async def get_any_by_id(self, id_: UserId) -> StoredUser | None:
         """Return any user by id, including inactive or soft-deleted records."""
 
     @abstractmethod
-    async def get_all_any_status(self) -> Sequence[UserData]:
+    async def get_all_any_status(self) -> Sequence[StoredUser]:
         """Return all users, including inactive or soft-deleted records."""
 
     @abstractmethod
-    async def create(self, data: UserCreate) -> UserData:
+    async def create(self, data: UserCreate) -> StoredUser:
         """Create and return a user."""
 
     @abstractmethod
-    async def update(self, id_: UserId, data: UserUpdate) -> UserData | None:
+    async def update(self, id_: UserId, data: UserUpdate) -> StoredUser | None:
         """Update and return an active, non-deleted user or None if it does not exist."""
 
     @abstractmethod
-    async def update_admin(self, id_: UserId, data: UserAdminUpdate) -> UserData | None:
+    async def update_admin(self, id_: UserId, data: UserAdminUpdate) -> StoredUser | None:
         """Update and return a non-deleted user or None if it does not exist."""
 
     @abstractmethod

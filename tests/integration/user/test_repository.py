@@ -10,7 +10,7 @@ from app.db.repositories import (
     UsernameAlreadyExistsError,
     UserRepository,
 )
-from app.domain.schemas import UserAdminUpdate, UserCreate, UserData, UserId, UserUpdate
+from app.domain.schemas import StoredUser, UserAdminUpdate, UserCreate, UserId, UserUpdate
 
 pytestmark = pytest.mark.anyio
 
@@ -178,7 +178,7 @@ async def test_get_active_by_username_returns_full_user_data(
 
     found_user = await repository.get_active_by_username(user.username)
 
-    assert found_user == UserData(
+    assert found_user == StoredUser(
         id=UserId(user.id),
         username=user.username,
         email=user.email,
