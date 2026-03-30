@@ -6,8 +6,11 @@ from uuid_extensions import uuid7
 
 from app.core.config import JWTConfig
 from app.domain.repositories import AbstractDocumentRepository
-from app.domain.repositories.project_repository import AbstractProjectRepository
-from app.domain.schemas import ProjectRead
+from app.domain.repositories.project_repository import (
+    AbstractProjectRepository,
+    ProjectWithUserRole,
+)
+from app.domain.schemas import ProjectMemberRole
 from app.domain.schemas.document import (
     DocumentConfirmUpload,
     DocumentCreate,
@@ -178,22 +181,28 @@ class DocumentService:
     async def _ensure_project_access(
         self, current_user: UserAuthRead, project_id: ProjectId
     ) -> None:
-        project = await self.project_repo.get_by_id(project_id)
-        if project is None:
-            msg = f"Project with id '{project_id}' was not found."
-            raise ProjectNotFoundError(msg)
-
-        if self._is_owner(current_user, project):
-            return
-
-        if await self.project_repo.has_access_to_project(project_id, current_user.id):
+        project_with_user_role = await self._require_project_with_user_role(
+            project_id,
+            current_user.id,
+        )
+        if project_with_user_role.role is not None:
             return
 
         raise ProjectAccessDeniedError
 
-    @staticmethod
-    def _is_owner(current_user: UserAuthRead, project: ProjectRead) -> bool:
-        return current_user.id == project.owner_id
+    async def _require_project_with_user_role(
+        self,
+        project_id: ProjectId,
+        user_id: UserId,
+    ) -> ProjectWithUserRole:
+        project_with_user_role = await self.project_repo.get_project_with_user_role(
+            project_id,
+            user_id,
+        )
+        if project_with_user_role is None:
+            msg = f"Project with id '{project_id}' was not found."
+            raise ProjectNotFoundError(msg)
+        return project_with_user_role
 
     @staticmethod
     def _build_storage_key(project_id: ProjectId) -> str:
@@ -271,20 +280,20 @@ class DocumentService:
     async def _ensure_delete_access(
         self, current_user: UserAuthRead, document: DocumentRead
     ) -> None:
-        project = await self.project_repo.get_by_id(document.project_id)
-        if project is None:
-            msg = f"Project with id '{document.project_id}' was not found."
-            raise ProjectNotFoundError(msg)
-
-        if self._is_owner(current_user, project):
+        project_with_user_role = await self._require_project_with_user_role(
+            document.project_id,
+            current_user.id,
+        )
+        if project_with_user_role.role is ProjectMemberRole.OWNER:
             return
 
-        if await self.project_repo.has_access_to_project(document.project_id, current_user.id):
-            if document.uploaded_by == current_user.id:
-                return
-            raise PermissionDeniedError
+        if project_with_user_role.role is not None and document.uploaded_by == current_user.id:
+            return
 
-        raise ProjectAccessDeniedError
+        if project_with_user_role.role is None:
+            raise ProjectAccessDeniedError
+
+        raise PermissionDeniedError
 
     async def _delete_file_safely(self, storage_key: str) -> None:
         try:

@@ -193,6 +193,7 @@ def build_upload_token(
 @pytest.mark.anyio
 async def test_document_service_initiate_upload_returns_upload_intent(
     document_service: DocumentService,
+    project_repository: InMemoryProjectRepository,
     owner: UserRead,
     file_storage: InMemoryFileStorage,
     jwt_service: JWTService,
@@ -216,6 +217,9 @@ async def test_document_service_initiate_upload_returns_upload_intent(
     assert file_storage.presigned_put_requests == [
         (payload["sub"], DOCX_CONTENT_TYPE, MAX_DOCUMENT_SIZE_BYTES)
     ]
+    assert project_repository.get_project_with_user_role_calls == [(PROJECT_ID, OWNER_ID)]
+    assert project_repository.get_by_id_calls == []
+    assert project_repository.has_access_to_project_calls == []
 
 
 @pytest.mark.anyio
@@ -659,6 +663,7 @@ async def test_document_service_update_returns_updated_document(
 async def test_document_service_delete_removes_document_and_file(
     document_service: DocumentService,
     document_repository: InMemoryDocumentRepository,
+    project_repository: InMemoryProjectRepository,
     file_storage: InMemoryFileStorage,
     owner: UserRead,
 ) -> None:
@@ -666,6 +671,9 @@ async def test_document_service_delete_removes_document_and_file(
 
     assert await document_repository.get_by_id(DOCUMENT_ID) is None
     assert file_storage.deleted_keys == ["documents/architecture.pdf"]
+    assert project_repository.get_project_with_user_role_calls == [(PROJECT_ID, OWNER_ID)]
+    assert project_repository.get_by_id_calls == []
+    assert project_repository.has_access_to_project_calls == []
 
 
 @pytest.mark.anyio
