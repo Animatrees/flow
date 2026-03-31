@@ -13,6 +13,8 @@ from app.domain.schemas.user import LowerEmail, Username
 
 
 class RegisterRequest(BaseModel):
+    """Schema for user registration requests."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username
@@ -22,6 +24,7 @@ class RegisterRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_password_match(self) -> Self:
+        """Ensure both password fields match and reject weak passwords."""
         if self.password != self.repeat_password:
             msg = "Passwords do not match."
             raise ValueError(msg)
@@ -41,6 +44,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    """Schema for login requests."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username
@@ -48,6 +53,8 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    """Schema for bearer token responses."""
+
     access_token: str
     token_type: str = Field(default="Bearer")
     exp: int

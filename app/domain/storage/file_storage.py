@@ -4,12 +4,23 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class StoredObjectMetadata:
+    """Data object for metadata fetched from object storage."""
+
     size_bytes: int
     etag: str | None = None
     content_type: str | None = None
 
 
 class AbstractFileStorage(ABC):
+    """Storage contract for direct-upload object operations.
+
+    Supports:
+        - presigned upload URL generation
+        - presigned download URL generation
+        - object metadata reads
+        - object deletion
+    """
+
     @abstractmethod
     async def generate_presigned_put_url(
         self,
@@ -17,11 +28,11 @@ class AbstractFileStorage(ABC):
         content_type: str,
         max_size: int,
     ) -> str:
-        """Generate a temporary direct-upload URL for the given object."""
+        """Generate a temporary direct-upload URL."""
 
     @abstractmethod
     async def generate_presigned_get_url(self, storage_key: str) -> str:
-        """Generate a temporary download URL for the given object."""
+        """Generate a temporary download URL."""
 
     @abstractmethod
     async def get_file_metadata(self, storage_key: str) -> StoredObjectMetadata | None:

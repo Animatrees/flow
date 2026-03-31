@@ -237,10 +237,13 @@ Resources:
             #!/bin/bash
             set -euxo pipefail
             yum update -y
-            yum install -y docker docker-compose-plugin tar gzip curl
+            yum install -y docker tar gzip
             systemctl enable docker
             systemctl start docker
             usermod -a -G docker ec2-user
+            mkdir -p /usr/libexec/docker/cli-plugins
+            curl -sL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m) -o /usr/libexec/docker/cli-plugins/docker-compose
+            chmod +x /usr/libexec/docker/cli-plugins/docker-compose
             TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
             INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/instance-id)
             aws ec2 associate-address --instance-id $INSTANCE_ID --allocation-id ${FlowEIP.AllocationId} --region ${AWS::Region}

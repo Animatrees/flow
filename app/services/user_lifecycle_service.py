@@ -5,6 +5,14 @@ from app.services.exceptions import UserNotFoundError
 
 
 class UserLifecycleService:
+    """Service for user account deletion side effects.
+
+    Handles:
+        - user soft deletion
+        - deletion of owned projects
+        - membership cleanup
+    """
+
     def __init__(
         self,
         user_repo: AbstractUserRepository,

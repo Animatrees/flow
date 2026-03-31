@@ -22,6 +22,8 @@ from app.domain.schemas import (
 
 
 class UserRepository(AbstractUserRepository):
+    """SQLAlchemy repository for user persistence."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

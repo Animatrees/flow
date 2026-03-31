@@ -18,6 +18,8 @@ type FileChecksum = Annotated[
 
 
 class DocumentCreate(BaseModel):
+    """Schema for document upload metadata."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     filename: NonEmptyString
@@ -27,6 +29,8 @@ class DocumentCreate(BaseModel):
 
 
 class UploadIntentResponse(BaseModel):
+    """Schema for upload intent responses."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     upload_url: str
@@ -34,6 +38,8 @@ class UploadIntentResponse(BaseModel):
 
 
 class DocumentConfirmUpload(BaseModel):
+    """Schema for upload confirmation requests."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     filename: NonEmptyString
@@ -43,6 +49,8 @@ class DocumentConfirmUpload(BaseModel):
 
 
 class DocumentCreateStored(DocumentCreate):
+    """Schema for persisted document creation data."""
+
     project_id: ProjectId
     uploaded_by: UserId
     storage_key: NonEmptyString
@@ -50,12 +58,16 @@ class DocumentCreateStored(DocumentCreate):
 
 
 class DocumentUpdate(BaseModel):
+    """Schema for document updates."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     filename: NonEmptyString | None = None
 
 
 class DocumentRead(BaseModel):
+    """Schema for document read responses."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: DocumentId
@@ -69,10 +81,14 @@ class DocumentRead(BaseModel):
 
 
 class StoredDocument(DocumentRead):
+    """Schema for a persisted document record."""
+
     storage_key: str
 
 
 class DownloadUrlResponse(BaseModel):
+    """Schema for document download URL responses."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     download_url: str

@@ -12,6 +12,8 @@ from app.core.config import DatabaseConfig
 
 
 class SqlalchemyProvider(Provider):
+    """Dishka provider for the async SQLAlchemy engine and sessions."""
+
     @provide(scope=Scope.APP)
     async def provide_engine(self, config: DatabaseConfig) -> AsyncGenerator[AsyncEngine, None]:
         engine = create_async_engine(

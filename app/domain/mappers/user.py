@@ -8,6 +8,8 @@ from app.domain.schemas.user import (
 
 
 class UserMapper:
+    """Mapper for stored user records and API-facing schema variants."""
+
     @staticmethod
     def to_public(user: StoredUser) -> UserPublicRead:
         return UserPublicRead.model_validate(user)

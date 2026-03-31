@@ -10,6 +10,8 @@ from app.services import (
 
 
 class RepositoryProvider(Provider):
+    """Dishka provider for SQLAlchemy-backed repository bindings."""
+
     @provide(scope=Scope.REQUEST, provides=AbstractDocumentRepository)
     def provide_document_repository(self, session: AsyncSession) -> AbstractDocumentRepository:
         return DocumentRepository(session)

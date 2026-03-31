@@ -12,6 +12,8 @@ from app.services.exceptions import DocumentStorageError
 
 
 class S3ClientProtocol(Protocol):
+    """Protocol for the async S3 client methods used by the storage adapter."""
+
     def generate_presigned_url(
         self,
         client_method: str,
@@ -24,6 +26,8 @@ class S3ClientProtocol(Protocol):
 
 
 class S3SessionProtocol(Protocol):
+    """Protocol for creating async S3 clients from a session."""
+
     def client(
         self,
         service_name: str,
@@ -38,6 +42,8 @@ type SessionFactory = Callable[[], S3SessionProtocol]
 
 
 class S3FileStorage(AbstractFileStorage):
+    """Storage adapter for S3-backed document files."""
+
     def __init__(
         self,
         config: S3Config,

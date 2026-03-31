@@ -8,6 +8,8 @@ from app.db.models.mixins import TimestampMixin, UUIDPkMixin
 
 
 class User(Base, UUIDPkMixin, TimestampMixin):
+    """Database model for user accounts."""
+
     __tablename__ = "users"
 
     username: Mapped[str] = mapped_column(String(50), unique=True)

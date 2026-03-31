@@ -15,6 +15,15 @@ from app.services.user_lifecycle_service import UserLifecycleService
 
 
 class AdminUserService:
+    """Service for admin-only user operations.
+
+    Handles:
+        - listing users in any state
+        - administrative user reads
+        - administrative user updates
+        - administrative account deletion
+    """
+
     def __init__(
         self, repo: AbstractUserRepository, lifecycle_service: UserLifecycleService
     ) -> None:

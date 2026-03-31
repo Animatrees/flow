@@ -8,6 +8,8 @@ from app.db.models.mixins import TimestampMixin, UUIDPkMixin
 
 
 class Document(Base, UUIDPkMixin, TimestampMixin):
+    """Database model for document metadata."""
+
     __tablename__ = "documents"
 
     project_id: Mapped[uuid.UUID] = mapped_column(

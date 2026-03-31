@@ -26,6 +26,8 @@ from app.domain.schemas.type_ids import ProjectId, UserId
 
 
 class ProjectRepository(AbstractProjectRepository):
+    """SQLAlchemy repository for projects and memberships."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -183,6 +185,7 @@ class ProjectRepository(AbstractProjectRepository):
         project_id: ProjectId,
         user_id: UserId,
     ) -> RepositoryError:
+        """Map membership integrity errors to repository-specific exceptions."""
         error_text = str(err.orig).lower()
 
         if "project_members" in error_text and "unique" in error_text:

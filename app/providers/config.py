@@ -4,6 +4,8 @@ from app.core.config import DatabaseConfig, JWTConfig, S3Config, Settings
 
 
 class ConfigProvider(Provider):
+    """Dishka provider for application configuration objects."""
+
     def __init__(self, config: Settings) -> None:
         super().__init__()
         self._config = config

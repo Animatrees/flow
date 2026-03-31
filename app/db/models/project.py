@@ -14,6 +14,8 @@ def project_status_values(_: type[ProjectStatus]) -> list[str]:
 
 
 class Project(Base, UUIDPkMixin, TimestampMixin):
+    """Database model for projects."""
+
     __tablename__ = "projects"
 
     name: Mapped[str] = mapped_column(String(255))

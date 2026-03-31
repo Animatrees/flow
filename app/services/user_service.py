@@ -18,6 +18,16 @@ from app.services.user_lifecycle_service import UserLifecycleService
 
 
 class UserService:
+    """Service for self-service user operations.
+
+    Handles:
+        - user creation
+        - self and public user reads
+        - self-service profile updates
+        - self-service account deletion
+        - last-login tracking
+    """
+
     def __init__(
         self, repo: AbstractUserRepository, lifecycle_service: UserLifecycleService
     ) -> None:

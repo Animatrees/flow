@@ -6,15 +6,21 @@ from sqlalchemy import URL
 
 
 class RunConfig(BaseModel):
+    """Configuration for the HTTP application runtime."""
+
     host: str = "127.0.0.1"
     port: int = 8000
 
 
 class ApiPrefix(BaseModel):
+    """Configuration for the versioned API route prefix."""
+
     prefix: str = "/api/v1"
 
 
 class DatabaseConfig(BaseModel):
+    """Configuration for the async SQLAlchemy engine."""
+
     name: str
     user: str
     password: SecretStr
@@ -40,6 +46,8 @@ class DatabaseConfig(BaseModel):
 
 
 class JWTConfig(BaseModel):
+    """Configuration for JWT signing keys and token lifetimes."""
+
     private_key_path: Path
     public_key_path: Path
     algorithm: str = "RS256"
@@ -48,6 +56,8 @@ class JWTConfig(BaseModel):
 
 
 class S3Config(BaseModel):
+    """Configuration for S3 document storage and presigned URLs."""
+
     bucket: str
     region: str
     presign_expire_seconds: int
@@ -56,6 +66,8 @@ class S3Config(BaseModel):
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
     ENV_FILE_PATH: Path = Path(__file__).resolve().parent.parent.parent / ".env"
 
     model_config = SettingsConfigDict(

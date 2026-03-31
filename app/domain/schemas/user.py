@@ -37,6 +37,8 @@ type LowerEmail = Annotated[EmailStr, AfterValidator(to_lower)]
 
 
 class UserCreate(BaseModel):
+    """Schema for creating a persisted user record."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username
@@ -45,6 +47,8 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    """Schema for self-service user profile updates."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     username: Username | None = None
@@ -52,6 +56,8 @@ class UserUpdate(BaseModel):
 
 
 class UserAdminUpdate(UserUpdate):
+    """Schema for admin-only user updates."""
+
     model_config = ConfigDict(strict=True, frozen=True)
 
     is_superuser: bool | None = None
@@ -59,6 +65,8 @@ class UserAdminUpdate(UserUpdate):
 
 
 class StoredUser(BaseModel):
+    """Schema for a persisted user record."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UserId
@@ -74,6 +82,8 @@ class StoredUser(BaseModel):
 
 
 class UserPublicRead(BaseModel):
+    """Schema for the public user view."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UserId
@@ -82,16 +92,22 @@ class UserPublicRead(BaseModel):
 
 
 class UserSelfRead(UserPublicRead):
+    """Schema for the self-service user view."""
+
     email: str
     created_at: datetime
     updated_at: datetime
 
 
 class UserAdminRead(UserSelfRead):
+    """Schema for the administrative user view."""
+
     is_superuser: bool
     is_active: bool
     deleted_at: datetime | None
 
 
 class UserAuthRead(UserAdminRead):
+    """Schema for user data used during authentication and authorization."""
+
     password_hash: str

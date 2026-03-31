@@ -14,6 +14,8 @@ def project_member_role_values(_: type[ProjectMemberRole]) -> list[str]:
 
 
 class ProjectMember(Base, CreatedAtMixin):
+    """Database model for project membership records."""
+
     __tablename__ = "project_members"
 
     project_id: Mapped[uuid.UUID] = mapped_column(
