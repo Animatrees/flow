@@ -16,6 +16,9 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.release.outputs.version }}
+      image_uri: ${{ steps.release.outputs.image_uri }}
     permissions:
       contents: read
       packages: write
@@ -42,6 +45,15 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      - name: Compute release version
+        id: release
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          VERSION="sha-${GITHUB_SHA::12}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "image_uri=${IMAGE_NAME}:$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -60,7 +72,9 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.release.outputs.image_uri }}
           labels: ${{ steps.meta.outputs.labels }}
 
   deploy:
@@ -94,6 +108,11 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='DocumentsBucketName'].OutputValue | [0]" \
             --output text)
 
+          ARTIFACTS_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='ArtifactsBucketName'].OutputValue | [0]" \
+            --output text)
+
           if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "None" ]; then
             echo "DatabaseEndpoint output not found for stack $STACK_NAME" >&2
             exit 1
@@ -104,13 +123,57 @@ jobs:
             exit 1
           fi
 
+          if [ -z "$ARTIFACTS_BUCKET" ] || [ "$ARTIFACTS_BUCKET" = "None" ]; then
+            echo "ArtifactsBucketName output not found for stack $STACK_NAME" >&2
+            exit 1
+          fi
+
           echo "db_host=$DB_HOST" >> "$GITHUB_OUTPUT"
           echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
+          echo "artifacts_bucket=$ARTIFACTS_BUCKET" >> "$GITHUB_OUTPUT"
+
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Build deployment bundle
+        env:
+          IMAGE_URI: ${{ needs.publish.outputs.image_uri }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/deploy-bundle
+          cp docker-compose.prod.yml dist/deploy-bundle/docker-compose.prod.yml
+          cp infrastructure/deploy.sh dist/deploy-bundle/deploy.sh
+
+          cat > dist/deploy-bundle/release.env <<EOF
+          APP_IMAGE=$IMAGE_URI
+          RELEASE_VERSION=$RELEASE_VERSION
+          EOF
+
+          tar -czf dist/bundle.tar.gz -C dist/deploy-bundle .
+
+      - name: Upload deployment bundle
+        env:
+          ARTIFACTS_BUCKET: ${{ steps.infra.outputs.artifacts_bucket }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          aws s3 cp dist/bundle.tar.gz "s3://${ARTIFACTS_BUCKET}/releases/${RELEASE_VERSION}/bundle.tar.gz"
+          aws s3 cp dist/bundle.tar.gz "s3://${ARTIFACTS_BUCKET}/current/bundle.tar.gz"
 
       - name: Trigger Deployment on EC2 via AWS SSM
+        env:
+          DB_HOST: ${{ steps.infra.outputs.db_host }}
+          DOCS_BUCKET: ${{ steps.infra.outputs.s3_bucket }}
+          ARTIFACTS_BUCKET: ${{ steps.infra.outputs.artifacts_bucket }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.release_version }}
         run: |
           aws ssm send-command \
             --targets "Key=tag:Role,Values=BackendApp" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["curl -s -O https://raw.githubusercontent.com/${{ github.repository }}/main/infrastructure/deploy.sh", "bash deploy.sh ${{ steps.infra.outputs.db_host }} ${{ github.repository }} ${{ steps.infra.outputs.s3_bucket }}"]' \
-            --comment "Deploying branch main"
+            --parameters "commands=[\"mkdir -p /home/ec2-user/flow-app\",\"aws s3 cp s3://${ARTIFACTS_BUCKET}/releases/${RELEASE_VERSION}/bundle.tar.gz /tmp/flow-bundle.tar.gz\",\"tar -xzf /tmp/flow-bundle.tar.gz -C /home/ec2-user/flow-app\",\"chmod +x /home/ec2-user/flow-app/deploy.sh\",\"AWS_REGION=eu-north-1 bash /home/ec2-user/flow-app/deploy.sh ${DB_HOST} ${ARTIFACTS_BUCKET} releases/${RELEASE_VERSION} ${DOCS_BUCKET}\"]" \
+            --comment "Deploying release ${RELEASE_VERSION}"

@@ -1,17 +1,38 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 AWS_REGION=${AWS_REGION:-eu-north-1}
 DB_HOST=$1
-REPO=$2
-S3_BUCKET=$3
+ARTIFACTS_BUCKET=$2
+RELEASE_REF=$3
+S3_BUCKET=$4
+APP_DIR=/home/ec2-user/flow-app
+TMP_DIR=$(mktemp -d)
+BUNDLE_URI="s3://${ARTIFACTS_BUCKET}/${RELEASE_REF}/bundle.tar.gz"
 
-cd /home/ec2-user
-mkdir -p flow-app
-cd flow-app
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
 
-echo "1. Downloading docker-compose.prod.yml..."
-curl -s -O "https://raw.githubusercontent.com/$REPO/main/docker-compose.prod.yml"
+trap cleanup EXIT
+
+mkdir -p "$APP_DIR"
+cd "$APP_DIR"
+
+echo "1. Downloading deployment bundle from ${BUNDLE_URI}..."
+aws s3 cp "$BUNDLE_URI" "${TMP_DIR}/bundle.tar.gz" --region "$AWS_REGION"
+tar -xzf "${TMP_DIR}/bundle.tar.gz" -C "$TMP_DIR"
+
+install -m 644 "${TMP_DIR}/docker-compose.prod.yml" "${APP_DIR}/docker-compose.prod.yml"
+install -m 600 "${TMP_DIR}/release.env" "${APP_DIR}/release.env"
+
+set -a
+# shellcheck disable=SC1091
+source "${APP_DIR}/release.env"
+set +a
+
+: "${APP_IMAGE:?APP_IMAGE is required}"
+: "${RELEASE_VERSION:?RELEASE_VERSION is required}"
 
 echo "2. Fetching secrets from AWS SSM..."
 mkdir -p secrets/prod
@@ -37,13 +58,25 @@ S3__REGION=$AWS_REGION
 S3__PRESIGN_EXPIRE_SECONDS=900
 EOF
 
-echo "4. Pulling new Docker image..."
+echo "4. Pulling image ${APP_IMAGE}..."
 docker compose -f docker-compose.prod.yml pull
 
 echo "5. Running Alembic migrations..."
 docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
 
 echo "6. Restarting application..."
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-echo "Deployment successful! 🚀"
+echo "7. Waiting for health check..."
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1/api/v1/health-check/ > /dev/null; then
+    echo "Deployment successful for ${RELEASE_VERSION}"
+    exit 0
+  fi
+
+  sleep 5
+done
+
+echo "Health check did not pass in time" >&2
+docker compose -f docker-compose.prod.yml ps >&2
+exit 1

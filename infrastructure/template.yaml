@@ -88,6 +88,18 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "flow-artifacts-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -142,6 +154,13 @@ Resources:
                 Resource:
                   - !GetAtt DocumentsBucket.Arn
                   - !Sub "${DocumentsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ArtifactsBucket.Arn
+                  - !Sub "${ArtifactsBucket.Arn}/*"
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -216,17 +235,34 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
+            set -euxo pipefail
             yum update -y
-            yum install -y docker
+            yum install -y docker docker-compose-plugin tar gzip curl
             systemctl enable docker
             systemctl start docker
             usermod -a -G docker ec2-user
-            mkdir -p /usr/libexec/docker/cli-plugins
-            curl -sL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m) -o /usr/libexec/docker/cli-plugins/docker-compose
-            chmod +x /usr/libexec/docker/cli-plugins/docker-compose
             TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
             INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/instance-id)
             aws ec2 associate-address --instance-id $INSTANCE_ID --allocation-id ${FlowEIP.AllocationId} --region ${AWS::Region}
+            APP_DIR=/home/ec2-user/flow-app
+            mkdir -p "$APP_DIR"
+            chown -R ec2-user:ec2-user "$APP_DIR"
+            for attempt in $(seq 1 12); do
+              if aws s3 cp "s3://${ArtifactsBucket}/current/bundle.tar.gz" /tmp/flow-bundle.tar.gz --region ${AWS::Region}; then
+                tar -xzf /tmp/flow-bundle.tar.gz -C "$APP_DIR"
+                chmod +x "$APP_DIR/deploy.sh"
+                if AWS_REGION=${AWS::Region} bash "$APP_DIR/deploy.sh" "${PostgresDB.Endpoint.Address}" "${ArtifactsBucket}" "current" "${DocumentsBucket}" >> /var/log/flow-bootstrap.log 2>&1; then
+                  exit 0
+                fi
+                echo "Bootstrap deployment failed, shutting down instance" >> /var/log/flow-bootstrap.log
+                shutdown -h now
+                exit 1
+              fi
+              sleep 10
+            done
+            echo "Bootstrap bundle was not found in s3://${ArtifactsBucket}/current/bundle.tar.gz" >> /var/log/flow-bootstrap.log
+            shutdown -h now
+            exit 1
 
   FlowASG:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -239,6 +275,7 @@ Resources:
       MinSize: '1'
       MaxSize: '1'
       DesiredCapacity: '1'
+      HealthCheckGracePeriod: 900
       Tags:
         - Key: Name
           Value: flow-prod-ec2
@@ -284,6 +321,14 @@ Resources:
                 Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
               - Effect: Allow
                 Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ArtifactsBucket.Arn
+                  - !Sub "${ArtifactsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
                   - ssm:SendCommand
                   - ssm:GetCommandInvocation
                 Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
@@ -310,6 +355,12 @@ Outputs:
     Value: !Ref DocumentsBucket
     Export:
       Name: FlowDocumentsBucketName
+
+  ArtifactsBucketName:
+    Description: 'S3 bucket used for deployment artifacts'
+    Value: !Ref ArtifactsBucket
+    Export:
+      Name: FlowArtifactsBucketName
 
   AppPublicIP:
     Description: 'Public IP of the FastAPI Backend'
