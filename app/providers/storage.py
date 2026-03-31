@@ -6,6 +6,8 @@ from app.services import AbstractFileStorage
 
 
 class StorageProvider(Provider):
+    """Dishka provider for file storage bindings."""
+
     @provide(scope=Scope.APP, provides=AbstractFileStorage)
     def provide_file_storage(self, config: S3Config) -> AbstractFileStorage:
         return S3FileStorage(config)

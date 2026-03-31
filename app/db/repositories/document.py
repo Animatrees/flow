@@ -17,6 +17,8 @@ from app.domain.schemas.type_ids import DocumentId, ProjectId
 
 
 class DocumentRepository(AbstractDocumentRepository):
+    """SQLAlchemy repository for document metadata."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -78,6 +80,7 @@ class DocumentRepository(AbstractDocumentRepository):
         err: IntegrityError,
         data: DocumentCreateStored,
     ) -> RepositoryError:
+        """Map document creation integrity errors to repository-specific exceptions."""
         error_text = str(err.orig).lower()
 
         if "uq_documents_storage_key" in error_text or (

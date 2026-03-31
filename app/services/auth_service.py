@@ -17,6 +17,14 @@ from app.services.user_service import UserService
 
 
 class AuthService:
+    """Service for authentication workflows.
+
+    Handles:
+        - user registration
+        - credential-based authentication
+        - current user resolution from access tokens
+    """
+
     def __init__(
         self,
         user_service: UserService,

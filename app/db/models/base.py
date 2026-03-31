@@ -13,6 +13,8 @@ convention = {
 
 
 class Base(DeclarativeBase):
+    """Base class for SQLAlchemy declarative models."""
+
     __abstract__ = True
 
     __mapper_args__: ClassVar[dict[str, bool]] = {"eager_defaults": True}

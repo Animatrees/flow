@@ -17,6 +17,8 @@ from app.services import (
 
 
 class ServiceProvider(Provider):
+    """Dishka provider for application service bindings."""
+
     @provide(scope=Scope.REQUEST)
     def provide_project_service(
         self,

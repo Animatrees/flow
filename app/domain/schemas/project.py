@@ -11,17 +11,23 @@ type NonEmptyString = Annotated[TrimmedString, StringConstraints(min_length=1)]
 
 
 class ProjectStatus(StrEnum):
+    """Enum for project lifecycle states."""
+
     OPEN = "open"
     WIP = "wip"
     DONE = "done"
 
 
 class ProjectMemberRole(StrEnum):
+    """Enum for project membership roles."""
+
     OWNER = "owner"
     MEMBER = "member"
 
 
 class ProjectCreate(BaseModel):
+    """Schema for project creation requests."""
+
     model_config = ConfigDict(frozen=True)
 
     name: NonEmptyString
@@ -32,10 +38,14 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectCreateWithOwner(ProjectCreate):
+    """Schema for project creation data with an owner id."""
+
     owner_id: UserId
 
 
 class ProjectUpdate(BaseModel):
+    """Schema for partial project updates."""
+
     model_config = ConfigDict(frozen=True)
 
     name: NonEmptyString | None = None
@@ -46,6 +56,8 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectRead(BaseModel):
+    """Schema for project read responses."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: ProjectId
@@ -59,6 +71,8 @@ class ProjectRead(BaseModel):
 
 
 class ProjectMemberRead(BaseModel):
+    """Schema for project membership records."""
+
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
     project_id: ProjectId

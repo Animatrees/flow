@@ -46,6 +46,16 @@ ALLOWED_FILE_TYPES = {
 
 
 class DocumentService:
+    """Service for document access, uploads, and storage integration.
+
+    Handles:
+        - direct-upload intent creation
+        - upload confirmation and metadata persistence
+        - document reads, updates, and deletion
+        - download URL generation
+        - project access and delete-permission checks
+    """
+
     def __init__(
         self,
         repo: AbstractDocumentRepository,
@@ -218,6 +228,7 @@ class DocumentService:
     def _decode_upload_token(
         self, upload_token: str, project_id: ProjectId, user_id: UserId
     ) -> str:
+        """Validate upload intent claims and return the storage key from the token."""
         try:
             payload = self.jwt_service.decode_token(upload_token)
         except InvalidTokenError as err:
@@ -287,6 +298,7 @@ class DocumentService:
     async def _ensure_delete_access(
         self, current_user: UserAuthRead, document: StoredDocument
     ) -> None:
+        """Allow deletes for project owners or for the original uploader with project access."""
         project_with_user_role = await self._require_project_with_user_role(
             document.project_id,
             current_user.id,
@@ -303,6 +315,7 @@ class DocumentService:
         raise PermissionDeniedError
 
     async def _delete_file_safely(self, storage_key: str) -> None:
+        """Best-effort file cleanup used after partial failures or successful deletes."""
         try:
             await self.file_storage.delete(storage_key)
         except Exception:

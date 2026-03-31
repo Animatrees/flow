@@ -28,6 +28,15 @@ from app.services.exceptions import (
 
 
 class ProjectService:
+    """Service for project lifecycle operations and membership checks.
+
+    Handles:
+        - project creation, reads, updates, and deletion
+        - membership listing
+        - owner-only member management
+        - date-range validation and access checks
+    """
+
     def __init__(
         self,
         repo: AbstractProjectRepository,

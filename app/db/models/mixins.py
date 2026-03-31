@@ -8,6 +8,8 @@ from uuid_extensions import uuid7
 
 
 class CreatedAtMixin:
+    """Mixin for a server-managed creation timestamp column."""
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -15,6 +17,8 @@ class CreatedAtMixin:
 
 
 class UpdatedAtMixin:
+    """Mixin for a server-managed update timestamp column."""
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -23,10 +27,12 @@ class UpdatedAtMixin:
 
 
 class TimestampMixin(CreatedAtMixin, UpdatedAtMixin):
-    pass
+    """Mixin for creation and update timestamp columns."""
 
 
 class UUIDPkMixin:
+    """Mixin for a UUIDv7 primary key column."""
+
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         primary_key=True,

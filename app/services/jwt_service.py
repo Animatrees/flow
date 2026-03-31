@@ -9,12 +9,21 @@ from app.services.exceptions import InvalidTokenError
 
 @dataclass
 class TokenData:
+    """Issued JWT token string with its issued-at and expiry timestamps."""
+
     token: str
     exp: int
     iat: int
 
 
 class JWTService:
+    """Service for signing and validating JWTs.
+
+    Handles:
+        - token creation with issue and expiry timestamps
+        - token decoding and signature validation
+    """
+
     def __init__(self, config: JWTConfig) -> None:
         self.config = config
         self.private_key = config.private_key_path.read_text()
