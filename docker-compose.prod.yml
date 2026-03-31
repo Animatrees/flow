@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/animatrees/flow:main
+    image: "${APP_IMAGE}"
     container_name: flow-app-prod
     restart: always
     env_file:
