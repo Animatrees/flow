@@ -1,11 +1,6 @@
 from dishka import Provider, Scope, provide
 
-from app.core.config import JWTConfig
 from app.services import (
-    AbstractDocumentRepository,
-    AbstractFileStorage,
-    AbstractProjectRepository,
-    AbstractUserRepository,
     AdminUserService,
     AuthService,
     DocumentService,
@@ -19,58 +14,13 @@ from app.services import (
 class ServiceProvider(Provider):
     """Dishka provider for application service bindings."""
 
-    @provide(scope=Scope.REQUEST)
-    def provide_project_service(
-        self,
-        repo: AbstractProjectRepository,
-        user_repo: AbstractUserRepository,
-    ) -> ProjectService:
-        return ProjectService(repo, user_repo)
+    scope = Scope.REQUEST
 
-    @provide(scope=Scope.REQUEST)
-    def provide_user_service(
-        self,
-        repo: AbstractUserRepository,
-        lifecycle_service: UserLifecycleService,
-    ) -> UserService:
-        return UserService(repo, lifecycle_service)
+    project_service = provide(ProjectService)
+    user_service = provide(UserService)
+    admin_user_service = provide(AdminUserService)
+    user_lifecycle_service = provide(UserLifecycleService)
+    auth_service = provide(AuthService)
+    document_service = provide(DocumentService)
 
-    @provide(scope=Scope.REQUEST)
-    def provide_admin_user_service(
-        self,
-        repo: AbstractUserRepository,
-        lifecycle_service: UserLifecycleService,
-    ) -> AdminUserService:
-        return AdminUserService(repo, lifecycle_service)
-
-    @provide(scope=Scope.REQUEST)
-    def provide_user_lifecycle_service(
-        self,
-        user_repo: AbstractUserRepository,
-        project_repo: AbstractProjectRepository,
-    ) -> UserLifecycleService:
-        return UserLifecycleService(user_repo, project_repo)
-
-    @provide(scope=Scope.REQUEST)
-    def provide_auth_service(
-        self,
-        user_service: UserService,
-        jwt_service: JWTService,
-        jwt_config: JWTConfig,
-    ) -> AuthService:
-        return AuthService(user_service, jwt_service, jwt_config)
-
-    @provide(scope=Scope.REQUEST)
-    def provide_document_service(
-        self,
-        repo: AbstractDocumentRepository,
-        project_repo: AbstractProjectRepository,
-        file_storage: AbstractFileStorage,
-        jwt_service: JWTService,
-        jwt_config: JWTConfig,
-    ) -> DocumentService:
-        return DocumentService(repo, project_repo, file_storage, jwt_service, jwt_config)
-
-    @provide(scope=Scope.APP)
-    def provide_jwt_service(self, config: JWTConfig) -> JWTService:
-        return JWTService(config)
+    jwt_service = provide(JWTService, scope=Scope.APP)

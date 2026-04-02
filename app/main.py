@@ -21,11 +21,12 @@ config = Settings()
 
 def container_factory() -> AsyncContainer:
     return make_async_container(
-        ConfigProvider(config=config),
+        ConfigProvider(),
         SqlalchemyProvider(),
         RepositoryProvider(),
         StorageProvider(),
         ServiceProvider(),
+        context={Settings: config},
     )
 
 
