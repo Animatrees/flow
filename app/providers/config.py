@@ -1,4 +1,4 @@
-from dishka import Provider, Scope, provide
+from dishka import Provider, Scope, from_context, provide
 
 from app.core.config import DatabaseConfig, JWTConfig, S3Config, Settings
 
@@ -6,22 +6,18 @@ from app.core.config import DatabaseConfig, JWTConfig, S3Config, Settings
 class ConfigProvider(Provider):
     """Dishka provider for application configuration objects."""
 
-    def __init__(self, config: Settings) -> None:
-        super().__init__()
-        self._config = config
+    scope = Scope.APP
 
-    @provide(scope=Scope.APP)
-    def provide_config(self) -> Settings:
-        return self._config
+    config = from_context(provides=Settings)
 
-    @provide(scope=Scope.APP)
-    def provide_db_config(self) -> DatabaseConfig:
-        return self._config.db
+    @provide
+    def provide_db_config(self, settings: Settings) -> DatabaseConfig:
+        return settings.db
 
-    @provide(scope=Scope.APP)
-    def provide_jwt_config(self) -> JWTConfig:
-        return self._config.jwt
+    @provide
+    def provide_jwt_config(self, settings: Settings) -> JWTConfig:
+        return settings.jwt
 
-    @provide(scope=Scope.APP)
-    def provide_s3_config(self) -> S3Config:
-        return self._config.s3
+    @provide
+    def provide_s3_config(self, settings: Settings) -> S3Config:
+        return settings.s3

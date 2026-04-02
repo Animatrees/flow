@@ -173,11 +173,12 @@ async def container(
     )
 
     test_container = make_async_container(
-        ConfigProvider(config=settings),
+        ConfigProvider(),
         ApiTestDatabaseProvider(db_url),
         RepositoryProvider(),
         TestStorageProvider(file_storage),
         ServiceProvider(),
+        context={Settings: settings},
     )
     try:
         yield test_container
